@@ -2283,7 +2283,10 @@ function drawCard(cv,c,p,W,H){
 
   /* --- 版位計算（經文＋內文垂直置中於團體名之下） --- */
   const hasStickerLayout=photoImg&&photoMode==="sticker"&&!suppressSticker;
-  const topRoom=pad+Math.round(96*F), botRoom=pad+Math.round(150*F)+(hasStickerLayout?Math.round(Math.min(W,H)*0.34):0);
+  /* 祝福語與署名會因為貼紙或自拍而往上移，底部要預留同樣的高度，內文才不會壓過去 */
+  const liftRoom=hasStickerLayout?Math.round(Math.min(W,H)*0.34)
+                :(selfieLayout?Math.round(Math.min(W,H)*0.24):0);
+  const topRoom=pad+Math.round(96*F), botRoom=pad+Math.round(160*F)+liftRoom;
   const room=H-topRoom-botRoom;
 
   let vs=Math.round(54*F),vl;
@@ -2294,7 +2297,7 @@ function drawCard(cv,c,p,W,H){
   const fixed=vs*.9+vl.length*vs*1.55+Math.round(52*F)+Math.round(54*F);
   let bs=Math.round(37*F),bl;
   while(true){ctx.font=`${bs}px ${sans}`;bl=wrap(ctx,bodyTxt,iw);
-    if(fixed+bl.length*bs*1.74<=room||bs<=Math.round(20*F))break;bs-=Math.round(2*F);}
+    if(fixed+bl.length*bs*1.74<=room||bs<=Math.round(17*F))break;bs-=Math.round(2*F);}
 
   const total=fixed+bl.length*bs*1.74;
   let y=topRoom+Math.max(0,(room-total)/2);
@@ -2531,18 +2534,19 @@ async function vRec(){
         <button class="chip ${!recSelfie?"on":""}" onclick="setSelfie(false)">只有聲音</button>
         <button class="chip ${recSelfie?"on":""}" onclick="setSelfie(true)">📷 自拍畫面</button>
       </div>
-      <div id="selfieWrap" style="${recSelfie?"":"display:none"};margin:12px 0 4px;text-align:center">
-        <video id="selfiePrev" playsinline webkit-playsinline muted autoplay style="width:170px;height:170px;border-radius:50%;object-fit:cover;transform:scaleX(-1);border:3px solid var(--gold);background:#000"></video>
-        <div class="hint">您的臉會以圓形貼在卡片右下角，錄影時同步合成。</div>
-      </div>
       <hr class="sep">`:""}
-      <div id="liveBox" style="display:none;margin-bottom:12px"></div>
       <div id="recSt" class="muted">按下開始，把想說的話錄進去</div>
       <div id="recTm" style="font-family:var(--serif);font-size:calc(34px*var(--fs));margin:8px 0">00:00</div>
       <div class="row" style="justify-content:center">
         <button class="btn" id="recBtn" onclick="toggleRec()">${!vOK?"開始錄音":(recSelfie?"📷 開始自拍錄影":"開始錄影片")}</button>
       </div>
       <div class="hint">建議 30～60 秒：先叫名字，再讀經文，最後說一句祝福。</div>
+      ${vOK?`
+      <div id="selfieWrap" style="${recSelfie?"":"display:none"};margin:14px 0 0;text-align:center">
+        <video id="selfiePrev" playsinline webkit-playsinline muted autoplay style="width:170px;height:170px;border-radius:50%;object-fit:cover;transform:scaleX(-1);border:3px solid var(--gold);background:#000"></video>
+        <div class="hint">您的臉會以圓形貼在卡片右下角，錄影時同步合成。</div>
+      </div>`:""}
+      <div id="liveBox" style="display:none;margin-top:14px"></div>
      </div>`
     :`<div class="empty"><b>還沒有選卡片</b>請到「卡片」頁選一張，按「錄音做卡」；或請AI小智當場寫一張。</div>
       <button class="btn wide gold" onclick="xzOpen()"><span style="font-size:1.15em">✨</span>&nbsp;請AI小智寫一張</button>
@@ -2669,6 +2673,7 @@ async function toggleRec(){
       if(lb){
         cv.style.cssText="width:100%;max-width:300px;border-radius:14px;display:block;margin:0 auto;box-shadow:0 6px 20px rgba(0,0,0,.14)";
         lb.innerHTML="";lb.appendChild(cv);lb.style.display="";
+        const sw=document.getElementById("selfieWrap");if(sw)sw.style.display="none";
       }
       const vs=cv.captureStream(24);
       stream=new MediaStream([...vs.getVideoTracks(),...audioStream.getAudioTracks()]);
@@ -2686,6 +2691,8 @@ async function toggleRec(){
     clearInterval(recTimer);cancelAnimationFrame(recAnim);
     const lb0=document.getElementById("liveBox");
     if(lb0){lb0.innerHTML="";lb0.style.display="none";}
+    const sw0=document.getElementById("selfieWrap");
+    if(sw0&&recSelfie)sw0.style.display="";
     mic.getTracks().forEach(t=>t.stop());
     stopSelfie();
     try{if(bgmEl){bgmEl.pause();bgmEl.src="";}}catch(_){}
@@ -2822,7 +2829,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v1.9.0（三語版）</div>
+      <div class="hint">版本 v2.0.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
