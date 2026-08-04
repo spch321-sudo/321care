@@ -1,7 +1,7 @@
 /* 321愛的關懷 · Service Worker
    每次更新內容，請把 CACHE 版號往上跳一號（例如 v1.4.0 → v1.4.1），
    長輩的手機才會拿到新版本。 */
-const CACHE = "care321-v2.8.0";
+const CACHE = "care321-v3.0.0";
 
 const SHELL = [
   "./",

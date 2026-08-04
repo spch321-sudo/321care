@@ -197,6 +197,8 @@ body.dark .tpl.on span:last-child{color:var(--gold-l)}
 .tpl .sw.brd-ornate::after{bottom:8px;right:8px;border-bottom:2px solid var(--gold);border-right:2px solid var(--gold)}
 .tpl .sw.brd-none{background:repeating-linear-gradient(45deg,var(--mist),var(--mist) 6px,var(--card) 6px,var(--card) 12px)}
 canvas#cv{width:100%;border-radius:16px;border:1px solid var(--line);display:block}
+
+.cprev{margin:12px 0 4px}
 </style>
 </head>
 <body>
@@ -1563,6 +1565,8 @@ var EN_RULES=[
  ["平安晴空","Clear peaceful sky"],["素雅棉麻","Soft linen"],
  ["古典雙框","Classic double border"],["雅緻角飾","Elegant corners"],
  ["內斂細線","Fine thin line"],["珠鏈點框","Beaded border"],["華麗花角","Ornate floral"],["無邊框","No border"],
+ ["卡片預覽","Card preview"],
+ ["上面每一張都是做成圖卡後的實際樣子。版型、邊框、相片與字級都可在「做成圖卡」裡調整。","Each preview above is exactly how the image card will look. Design, border, photo and text size can be adjusted under “Make an image card”."],
  ["選一款版型","Choose a design"],["選一款邊框","Choose a border"],
  ["加一張相片（選用）","Add a photo (optional)"],
  ["從相簿選相片","Choose from photos"],
@@ -1583,9 +1587,11 @@ var EN_RULES=[
  ["音樂音量","Music volume"],["換一首","Change track"],["移除音樂","Remove music"],
  ["小聲","Soft"],["適中","Medium"],["明顯","Loud"],
  ["這不是音樂檔，請選 mp3、m4a、wav 等音檔","That is not an audio file. Please choose an mp3, m4a or wav file."],
- ["🎵 不錄音，只配整首音樂","🎵 No recording — just the whole track"],
- ["不錄音，只配整首音樂","No recording — just the whole track"],
- ["卡片配上整首背景音樂做成影片，不需要開口，音樂播完就自動完成。","Turns the card into a video with the whole music track. No need to speak — it finishes when the music ends."],
+ ["🎵 不錄音，只配音樂","🎵 No recording — just music"],
+ ["不錄音，只配音樂","No recording — just music"],
+ ["音樂卡片長度","Music card length"],
+ ["15 秒","15 sec"],["30 秒","30 sec"],["1 分鐘","1 min"],["整首","Whole track"],
+ ["卡片配上背景音樂做成影片，不需要開口。選 15 或 30 秒，一下子就好了；選「整首」則要等音樂播完。","Turns the card into a video with background music — no need to speak. 15 or 30 seconds is quick; “Whole track” waits for the music to finish."],
  ["音樂卡片製作中…","Making your music card…"],
  ["請先選一首背景音樂","Please choose a background track first"],
  ["無法讀取這首音樂，請換一首","That track could not be read. Please choose another."],
@@ -2089,6 +2095,7 @@ function vCardList(){
       <div class="vcard">
         <div class="vs"><div class="vt">${QO()}${esc(c.v)}${QC()}</div><div class="vr">${esc(c.r)}</div></div>
         <div class="vb">${esc(merge(c.w,p))}</div>
+        <div id="pv${i}" class="cprev"></div>
         <div class="va">
           <button class="btn sm" onclick="makeImg('${sc.id}',${i})">做成圖卡</button>
           <button class="btn sm ghost" onclick="copyTxt('${sc.id}',${i})">複製文字</button>
@@ -2097,9 +2104,12 @@ function vCardList(){
         </div>
       </div>`).join("")}
     ${p?`<button class="btn wide ghost" onclick="markCared('${p.id}','${sc.n}')">送出後：記為今日已關懷</button>`:""}
+    <div class="hint" style="margin-top:8px">上面每一張都是做成圖卡後的實際樣子。版型、邊框、相片與字級都可在「做成圖卡」裡調整。</div>
     <div style="height:10px"></div>
   </div>`;
   localizeAll();
+  /* 一張一張慢慢畫，畫面才不會卡住 */
+  sc.cards.forEach((c,i)=>setTimeout(()=>renderPreview("pv"+i,c,p),40*i));
 }
 let override={};
 function ck(sid,i){return sid+"#"+i;}
@@ -2133,6 +2143,19 @@ function copyTxt(sid,i){
 /* ================= 圖卡繪製 ================= */
 const SIZES={p:[1080,1920,"直式（推薦）"],s:[1080,1080,"方形"],w:[1920,1080,"橫式"]};
 let curSize="p";
+/* 卡片即時預覽：挑卡、改字、換版型時都能先看到成品長什麼樣 */
+function renderPreview(boxId,c,p){
+  const box=document.getElementById(boxId);
+  if(!box||!c)return;
+  try{
+    const[W0,H0]=SIZES[curSize];
+    const sc=Math.min(1,620/Math.max(W0,H0));
+    const cv=document.createElement("canvas");
+    drawCard(cv,c,p,Math.round(W0*sc),Math.round(H0*sc));
+    cv.style.cssText="width:100%;max-width:250px;display:block;margin:0 auto;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.13)";
+    box.innerHTML="";box.appendChild(cv);
+  }catch(e){}
+}
 function wrap(ctx,text,maxW){
   const out=[];
   (text||"").split("\n").forEach(par=>{
@@ -2185,6 +2208,10 @@ let curBorder="classic";
 let photoImg=null,photoMode="bg",suppressSticker=false,selfieLayout=false,__reCall="";
 /* 相片貼紙：大小與位置（四個角落＋正下方） */
 let stkSize=0.30, stkPos="br";
+/* 音樂卡片長度：不必等整首播完 */
+let mcLen=30;
+const MC_LENS=[[15,"15 秒"],[30,"30 秒"],[60,"1 分鐘"],[0,"整首"]];
+function setMcLen(v){mcLen=v;vRec();}
 const STK_SIZES=[[0.22,"小張"],[0.30,"中等"],[0.38,"大張"],[0.46,"滿版"]];
 const STK_POS=[["bl","左下"],["bc","正下"],["br","右下"],["tl","左上"],["tr","右上"]];
 function setStkSize(v){stkSize=v;reRender();}
@@ -2322,7 +2349,7 @@ function drawCard(cv,c,p,W,H){
     if(vl.length<=6||vs<=Math.round(30*F))break;vs-=Math.round(3*F);}
 
   const bodyTxt=LT(merge(c.w,p));
-  const fixed=vs*.9+vl.length*vs*1.55+Math.round(52*F)+Math.round(54*F);
+  const fixed=vs*.9+vl.length*vs*1.55+Math.round(62*F)+Math.round(84*F);
   let bs=Math.round(40*FB),bl;
   while(true){ctx.font=`${bs}px ${sans}`;bl=wrap(ctx,bodyTxt,iw);
     if(fixed+bl.length*bs*1.74<=room||bs<=Math.round(24*F))break;bs-=Math.round(2*F);}
@@ -2336,7 +2363,7 @@ function drawCard(cv,c,p,W,H){
 
   /* --- 出處 --- */
   ctx.font=`${refSz}px ${sans}`;ctx.fillStyle=sub;
-  ctx.fillText(cR,W/2,y);y+=Math.round(52*F);
+  ctx.fillText(cR,W/2,y);y+=Math.round(62*F);
 
   /* --- 分隔飾 --- */
   ctx.fillStyle=gold;
@@ -2344,7 +2371,7 @@ function drawCard(cv,c,p,W,H){
   ctx.strokeStyle=gold;ctx.lineWidth=2.5*F;
   ctx.beginPath();ctx.moveTo(W/2-Math.round(52*F),y);ctx.lineTo(W/2-Math.round(16*F),y);ctx.stroke();
   ctx.beginPath();ctx.moveTo(W/2+Math.round(16*F),y);ctx.lineTo(W/2+Math.round(52*F),y);ctx.stroke();
-  y+=Math.round(54*F);
+  y+=Math.round(84*F);
 
   /* --- 內文 --- */
   ctx.textAlign="left";ctx.fillStyle=ink;ctx.font=`${bs}px ${sans}`;
@@ -2600,6 +2627,7 @@ async function vRec(){
        <div class="muted">${esc(pd.n)}　${pending.pid?"送給 "+esc((S.people.find(x=>x.id===pending.pid)||{}).name||""):"未指定對象"}</div>
        <div style="font-family:var(--serif);font-size:calc(19px*var(--fs));margin-top:8px;line-height:1.8">${QO()}${esc(pendCard().v)}${QC()}</div>
        <div class="muted" style="margin-top:6px">${esc(pendCard().r)}</div>
+       <div id="recPrev" style="margin-top:12px"></div>
        <div class="row tight" style="margin-top:10px">
          <button class="btn sm ghost" onclick="recEditCard()">改一改文字</button>
          <button class="btn sm ghost" onclick="pending=null;vRec()">換一張</button>
@@ -2639,8 +2667,12 @@ async function vRec(){
       <div class="hint">建議 30～60 秒：先叫名字，再讀經文，最後說一句祝福。</div>
       ${(vOK&&bgmBlob)?`
       <hr class="sep">
-      <button class="btn wide ghost" onclick="musicRec()">🎵 不錄音，只配整首音樂</button>
-      <div class="hint">卡片配上整首背景音樂做成影片，不需要開口，音樂播完就自動完成。</div>`:""}
+      <div class="muted" style="font-size:calc(14px*var(--fs));margin:2px 0 6px">音樂卡片長度</div>
+      <div class="row tight" style="justify-content:center;margin-bottom:8px">
+        ${MC_LENS.map(([v,nm])=>`<button class="chip ${mcLen===v?"on":""}" onclick="setMcLen(${v})">${nm}</button>`).join("")}
+      </div>
+      <button class="btn wide ghost" onclick="musicRec()">🎵 不錄音，只配音樂</button>
+      <div class="hint">卡片配上背景音樂做成影片，不需要開口。選 15 或 30 秒，一下子就好了；選「整首」則要等音樂播完。</div>`:""}
       ${vOK?`
       <div id="selfieWrap" style="${recSelfie?"":"display:none"};margin:14px 0 0;text-align:center">
         <video id="selfiePrev" playsinline webkit-playsinline muted autoplay style="width:170px;height:170px;border-radius:50%;object-fit:cover;transform:scaleX(-1);border:3px solid var(--gold);background:#000"></video>
@@ -2670,6 +2702,7 @@ async function vRec(){
   </div>`;
   localizeAll();
   if(recSelfie)attachSelfie();
+  if(pending)renderPreview("recPrev",pendCard(),S.people.find(x=>x.id===pending.pid));
 }
 
 async function setSelfie(on){
@@ -2722,6 +2755,7 @@ function drawSelfie(cx,vid,W,H,F){
 }
 
 /* 不錄音、不錄影：卡片配上整首背景音樂，直接做成一支影片 */
+let __mcGain=null;
 async function musicRec(){
   if(mr&&mr.state==="recording"){mr.stop();return;}
   if(!pending){toast("請先選一張卡片");return;}
@@ -2735,7 +2769,7 @@ async function musicRec(){
     bgmURL=URL.createObjectURL(bgmBlob);
     bgmEl=new Audio();bgmEl.src=bgmURL;bgmEl.loop=false;bgmEl.crossOrigin="anonymous";
     const src=ac.createMediaElementSource(bgmEl);
-    const gain=ac.createGain();gain.gain.value=1;
+    const gain=ac.createGain();gain.gain.value=1;__mcGain=gain;
     const dst=ac.createMediaStreamDestination();
     src.connect(gain).connect(dst);
     audioStream=dst.stream;
@@ -2787,7 +2821,12 @@ async function musicRec(){
   mr.start(1000);
   try{await bgmEl.play();}catch(e){}
   bgmEl.onended=()=>{if(mr&&mr.state==="recording")mr.stop();};
-  const cap=setTimeout(()=>{if(mr&&mr.state==="recording")mr.stop();},8*60*1000);
+  /* 指定長度時，結尾兩秒淡出後自動收尾 */
+  const lim=mcLen>0?mcLen:8*60;
+  if(mcLen>0){
+    setTimeout(()=>{try{__mcGain&&__mcGain.gain.linearRampToValueAtTime(0,ac.currentTime+1.8);}catch(_){}},Math.max(0,(lim-2))*1000);
+  }
+  setTimeout(()=>{if(mr&&mr.state==="recording")mr.stop();},lim*1000);
   const bt=$("#recBtn");if(bt){bt.textContent="停止並完成";bt.classList.add("danger");bt.setAttribute("onclick","musicRec()");}
   const st=$("#recSt");if(st)st.innerHTML='<span class="rec-dot" style="display:inline-block;vertical-align:middle;margin-right:8px"></span>音樂卡片製作中…　♪';
   recTimer=setInterval(()=>{recSec++;const e=$("#recTm");
@@ -3002,7 +3041,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v2.8.0（三語版）</div>
+      <div class="hint">版本 v3.0.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
@@ -3043,7 +3082,7 @@ function expICS(){
    每次改版：index.html 的 APP_VER、version.json、sw.js 的 CACHE 版號要一起跳。
    App 開啟時與每次切回前景時（最多每 5 分鐘一次）向伺服器問一次版本，
    有新版就在使用者不忙的時候自動換版；正在錄影或打字時只提示，不打斷。 */
-const APP_VER="2.8.0";
+const APP_VER="3.0.0";
 let __lastChk=0,__upd=false;
 function appBusy(){
   if(mr&&mr.state==="recording")return true;
