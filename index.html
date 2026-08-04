@@ -1572,6 +1572,13 @@ var EN_RULES=[
  ["選一首詩歌或輕音樂當背景，錄影或錄音時會輕輕鋪在您的聲音底下。","Pick a hymn or soft music; it will play quietly under your voice while recording."],
  ["錄製時會自動循環播放，混進您的影片或錄音裡。","It loops automatically and is mixed into your video or audio."],
  ["選擇視窗現在會顯示所有檔案。若一時找不到，請按左下角「瀏覽」，再到 iCloud 雲碟或「我的 iPhone」裡尋找。","The picker now shows every file. If you cannot find yours, tap “Browse” at the bottom left and look in iCloud Drive or On My iPhone."],
+ ["卡片上的字級","Text size on the card"],
+ ["只影響卡片與影片上的字，不影響 App 的介面。","This only changes the text on cards and videos, not the app interface."],
+ ["相片大小","Photo size"],["相片位置","Photo position"],
+ ["小張","Small"],["中等","Medium"],["大張","Large"],["滿版","Extra large"],
+ ["署名會自動排到相片的另一邊，不會被蓋住。","The signature moves to the opposite side of the photo so it is never covered."],
+ ["可把相片當卡片背景，或像貼紙貼在卡片上，大小與位置都能調。","Use the photo as the card background, or place it like a sticker — you can set its size and position."],
+ ["左下","Bottom left"],["正下","Bottom centre"],["右下","Bottom right"],["左上","Top left"],["右上","Top right"],
  ["音樂音量","Music volume"],["換一首","Change track"],["移除音樂","Remove music"],
  ["小聲","Soft"],["適中","Medium"],["明顯","Loud"],
  ["這不是音樂檔，請選 mp3、m4a、wav 等音檔","That is not an audio file. Please choose an mp3, m4a or wav file."],
@@ -1778,7 +1785,7 @@ function BL(){return isEN()?EN_BLESS:BLESS;}
 
 /* ================= 狀態 ================= */
 const KEY="care321.v1";
-const DEF={set:{group:"國度321空中團契",signer:"",fs:1,dark:0,quota:5,tip:1,lang:"zh-Hant"},people:[],logs:[]};
+const DEF={set:{group:"國度321空中團契",signer:"",fs:1,dark:0,quota:5,tip:1,lang:"zh-Hant",cardFs:1},people:[],logs:[]};
 let S=load();
 function load(){try{const o=JSON.parse(localStorage.getItem(KEY));if(o&&o.set)return Object.assign({},DEF,o,{set:Object.assign({},DEF.set,o.set)});}catch(e){}return JSON.parse(JSON.stringify(DEF));}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
@@ -2167,6 +2174,12 @@ const BORDERS=[
 ];
 let curBorder="classic";
 let photoImg=null,photoMode="bg",suppressSticker=false,selfieLayout=false,__reCall="";
+/* 相片貼紙：大小與位置（四個角落＋正下方） */
+let stkSize=0.30, stkPos="br";
+const STK_SIZES=[[0.22,"小張"],[0.30,"中等"],[0.38,"大張"],[0.46,"滿版"]];
+const STK_POS=[["bl","左下"],["bc","正下"],["br","右下"],["tl","左上"],["tr","右上"]];
+function setStkSize(v){stkSize=v;reRender();}
+function setStkPos(v){stkPos=v;reRender();}
 let bgmBlob=null,bgmName="",bgmVol=0.22;
 const AUD_EXT=/\.(mp3|m4a|aac|wav|aif|aiff|caf|flac|ogg|opus|mp4|mov|webm|wma)$/i;
 function pickBgm(inp){const f=inp&&inp.files&&inp.files[0];if(!f)return;
@@ -2233,7 +2246,7 @@ function drawCard(cv,c,p,W,H){
   const T=TPL[curTpl]||TPL.paper;
   const F=W/1080, pad=Math.round(W*.078), iw=W-pad*2;
   /* 卡片與影片的字級，跟著「設定 → 字級」同步放大或縮小 */
-  const FS=Math.min(1.5,Math.max(1,+(S.set.fs)||1)), FT=F*FS;
+  const FS=Math.min(1.5,Math.max(1,+(S.set.fs)||1))*(+(S.set.cardFs)||1), FT=F*FS;
   const sans=getComputedStyle(document.body).fontFamily;
   const serif='"Noto Serif TC","Songti TC","STSong","PMingLiU",serif';
   const ink=T.ink, accent=T.accent, gold=T.gold, sub=T.sub;
@@ -2287,17 +2300,19 @@ function drawCard(cv,c,p,W,H){
   /* --- 版位計算（經文＋內文垂直置中於團體名之下） --- */
   const hasStickerLayout=photoImg&&photoMode==="sticker"&&!suppressSticker;
   /* 祝福語與署名會因為貼紙或自拍而往上移，底部要預留同樣的高度，內文才不會壓過去 */
-  const liftRoom=hasStickerLayout?Math.round(Math.min(W,H)*0.34):0;
+  const stkBottom=stkPos!=="tl"&&stkPos!=="tr";
+  const liftRoom=(hasStickerLayout&&stkBottom)?Math.round(W*stkSize*1.12)+Math.round(30*F):0;
   const topRoom=pad+Math.round(96*F), botRoom=pad+Math.round(160*F)+liftRoom;
   const room=H-topRoom-botRoom;
 
   let vs=Math.round(54*FT),vl;
-  while(true){ctx.font=`600 ${vs}px ${serif}`;vl=wrap(ctx,QO()+c.v+QC(),iw);
+  const cV=LT(c.v||""),cR=LT(c.r||""),cB=LT(c.b||BL()[0]);
+  while(true){ctx.font=`600 ${vs}px ${serif}`;vl=wrap(ctx,QO()+cV+QC(),iw);
     if(vl.length<=6||vs<=Math.round(30*F))break;vs-=Math.round(3*F);}
 
-  const bodyTxt=merge(c.w,p);
+  const bodyTxt=LT(merge(c.w,p));
   const fixed=vs*.9+vl.length*vs*1.55+Math.round(52*F)+Math.round(54*F);
-  let bs=Math.round(37*FT),bl;
+  let bs=Math.round(40*FT),bl;
   while(true){ctx.font=`${bs}px ${sans}`;bl=wrap(ctx,bodyTxt,iw);
     if(fixed+bl.length*bs*1.74<=room||bs<=Math.round(24*F))break;bs-=Math.round(2*F);}
 
@@ -2310,7 +2325,7 @@ function drawCard(cv,c,p,W,H){
 
   /* --- 出處 --- */
   ctx.font=`${refSz}px ${sans}`;ctx.fillStyle=sub;
-  ctx.fillText(c.r,W/2,y);y+=Math.round(52*F);
+  ctx.fillText(cR,W/2,y);y+=Math.round(52*F);
 
   /* --- 分隔飾 --- */
   ctx.fillStyle=gold;
@@ -2326,19 +2341,25 @@ function drawCard(cv,c,p,W,H){
 
   /* --- 祝福與署名（近底部；自拍或貼相片時上移讓開） --- */
   const hasSticker=photoImg&&photoMode==="sticker"&&!suppressSticker;
-  const lift=hasSticker?Math.round(Math.min(W,H)*0.30):0;
+  const stkDown=hasSticker&&stkPos!=="tl"&&stkPos!=="tr";
+  const lift=(stkDown&&stkPos==="bc")?Math.round(W*stkSize*1.12)+Math.round(20*F):0;
   /* 自拍圓框在右下角，祝福語與署名就靠左排，彼此讓開 */
   const selfR=Math.round(Math.min(W,H)*0.115), selfPad=Math.round(W*.078);
-  const sideMode=!!selfieLayout&&!hasSticker;
-  const leftEdge=W-selfPad-selfR*2-Math.round(24*F);
-  const cxT=sideMode?(pad+leftEdge)/2:W/2;
-  const maxT=sideMode?(leftEdge-pad):iw;
+  /* 圓框或相片貼紙佔住一角時，祝福語與署名就排到另一邊，彼此讓開 */
+  const stkW=Math.round(W*stkSize);
+  const sideR=(!!selfieLayout&&!hasSticker)||(stkDown&&stkPos==="br");
+  const sideL=stkDown&&stkPos==="bl";
+  const sideMode=sideR||sideL;
+  const rightEdge=sideR?(selfieLayout&&!hasSticker?W-selfPad-selfR*2:W-pad-stkW)-Math.round(24*F):W-pad;
+  const leftStart=sideL?(pad+stkW+Math.round(24*F)):pad;
+  const cxT=sideMode?(leftStart+rightEdge)/2:W/2;
+  const maxT=sideMode?(rightEdge-leftStart):iw;
   const fitFont=(txt,size,weight,fam)=>{let z=size;
     while(z>Math.round(16*F)){ctx.font=`${weight} ${z}px ${fam}`;
       if(ctx.measureText(txt).width<=maxT)break;z-=Math.round(2*F);}
     ctx.font=`${weight} ${z}px ${fam}`;return z;};
   ctx.textAlign="center";ctx.fillStyle=accent;
-  const blTxt=c.b||BL()[0];
+  const blTxt=cB;
   fitFont(blTxt,blSz,"600",serif);
   ctx.fillText(blTxt,cxT,H-pad*.72-Math.round(96*F)-lift);
   const sig=LT((S.set.signer||"").trim());
@@ -2350,8 +2371,12 @@ function drawCard(cv,c,p,W,H){
 
   /* --- 相片貼紙（右下角，拍立得風格） --- */
   if(hasSticker){
-    const sw=Math.round(W*0.30), sh=Math.round(sw*1.12);
-    const bx=W-pad-sw+Math.round(4*F), by=H-pad-sh+Math.round(4*F);
+    const sw=Math.round(W*stkSize), sh=Math.round(sw*1.12);
+    const top=stkPos==="tl"||stkPos==="tr";
+    const bx=(stkPos==="bl"||stkPos==="tl")?pad-Math.round(4*F)
+            :(stkPos==="bc")?Math.round((W-sw)/2)
+            :W-pad-sw+Math.round(4*F);
+    const by=top?pad+Math.round(70*F):H-pad-sh+Math.round(4*F);
     ctx.save();
     ctx.translate(bx+sw/2,by+sh/2);ctx.rotate(-3*Math.PI/180);
     ctx.shadowColor="rgba(0,0,0,.30)";ctx.shadowBlur=Math.round(24*F);ctx.shadowOffsetY=Math.round(9*F);
@@ -2382,12 +2407,22 @@ function photoPickerHTML(){
         從相簿選相片
         <input type="file"  style="display:none" onchange="pickPhoto(this)">
       </label>
-      <div class="hint">可把相片當卡片背景，或像貼紙貼在卡片右下角。</div>`;
+      <div class="hint">可把相片當卡片背景，或像貼紙貼在卡片上，大小與位置都能調。</div>`;
   }
   return `<div class="row tight" style="margin-bottom:8px">
       <button class="chip ${photoMode==="bg"?"on":""}" onclick="setPhotoMode('bg')">作背景</button>
       <button class="chip ${photoMode==="sticker"?"on":""}" onclick="setPhotoMode('sticker')">貼在卡片上</button>
     </div>
+    ${photoMode==="sticker"?`
+    <div class="muted" style="font-size:calc(14px*var(--fs));margin:8px 0 6px">相片大小</div>
+    <div class="row tight" style="margin-bottom:8px">
+      ${STK_SIZES.map(([v,nm])=>`<button class="chip ${Math.abs(stkSize-v)<0.01?"on":""}" onclick="setStkSize(${v})">${nm}</button>`).join("")}
+    </div>
+    <div class="muted" style="font-size:calc(14px*var(--fs));margin:8px 0 6px">相片位置</div>
+    <div class="row tight" style="margin-bottom:8px">
+      ${STK_POS.map(([v,nm])=>`<button class="chip ${stkPos===v?"on":""}" onclick="setStkPos('${v}')">${nm}</button>`).join("")}
+    </div>
+    <div class="hint">署名會自動排到相片的另一邊，不會被蓋住。</div>`:""}
     <div class="row tight">
       <label class="btn ghost sm" style="cursor:pointer">換一張<input type="file"  style="display:none" onchange="pickPhoto(this)"></label>
       <button class="btn ghost sm" style="color:var(--red);border-color:var(--red)" onclick="clearPhoto()">移除相片</button>
@@ -2416,6 +2451,16 @@ function bgmPickerHTML(){
       <button class="btn ghost sm" style="color:var(--red);border-color:var(--red)" onclick="clearBgm()">移除音樂</button>
     </div>`;
 }
+const CARD_FS=[[1,"標準"],[1.15,"大"],[1.3,"特大"],[1.5,"超大"]];
+function cardFsHTML(reCall){
+  const cur=+(S.set.cardFs)||1;
+  return `<div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin:14px 0 8px">卡片上的字級</div>
+   <div class="row tight">
+     ${CARD_FS.map(([v,nm])=>`<button class="chip ${Math.abs(cur-v)<0.01?"on":""}" onclick="setCardFs(${v},'${reCall}')">${nm}</button>`).join("")}
+   </div>
+   <div class="hint">只影響卡片與影片上的字，不影響 App 的介面。</div>`;
+}
+function setCardFs(v,reCall){S.set.cardFs=v;save();if(reCall){try{(0,eval)(reCall);}catch(e){}}}
 function openImgSheet(c,p,reCall,fname){
   __xzCard=c;__reCall=reCall;
   sheet("做成圖卡",`
@@ -2430,6 +2475,7 @@ function openImgSheet(c,p,reCall,fname){
    <div class="row tight" style="margin:14px 0 6px">
      ${Object.entries(SIZES).map(([k,v])=>`<button class="chip ${curSize===k?"on":""}" onclick="curSize='${k}';${reCall}">${v[2]}</button>`).join("")}
    </div>
+   ${cardFsHTML(reCall)}
    <div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin:14px 0 8px">加一張相片（選用）</div>
    ${photoPickerHTML()}
    <div id="imgBox" class="muted" style="text-align:center;padding:40px 0">圖卡產生中…</div>
@@ -2559,6 +2605,7 @@ async function vRec(){
          ${BORDERS.map(bd=>`<button class="tpl ${curBorder===bd.id?"on":""}" onclick="curBorder='${bd.id}';vRec()">
             <span class="sw brd-${bd.id}"></span><span>${bd.n}</span></button>`).join("")}
        </div>
+       ${cardFsHTML("vRec()")}
        <div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin:12px 0 8px">相片（選用）</div>
        ${photoPickerHTML()}
        ${(photoImg&&photoMode==="sticker"&&recSelfie)?`<div class="hint" style="color:var(--amber)">自拍與相片貼紙都在右下角，錄影時會以自拍為主；相片建議改「作背景」。</div>`:""}
@@ -2867,7 +2914,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v2.2.0（三語版）</div>
+      <div class="hint">版本 v2.4.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
