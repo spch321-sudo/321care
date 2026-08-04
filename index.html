@@ -1583,6 +1583,12 @@ var EN_RULES=[
  ["音樂音量","Music volume"],["換一首","Change track"],["移除音樂","Remove music"],
  ["小聲","Soft"],["適中","Medium"],["明顯","Loud"],
  ["這不是音樂檔，請選 mp3、m4a、wav 等音檔","That is not an audio file. Please choose an mp3, m4a or wav file."],
+ ["🎵 不錄音，只配整首音樂","🎵 No recording — just the whole track"],
+ ["不錄音，只配整首音樂","No recording — just the whole track"],
+ ["卡片配上整首背景音樂做成影片，不需要開口，音樂播完就自動完成。","Turns the card into a video with the whole music track. No need to speak — it finishes when the music ends."],
+ ["音樂卡片製作中…","Making your music card…"],
+ ["請先選一首背景音樂","Please choose a background track first"],
+ ["無法讀取這首音樂，請換一首","That track could not be read. Please choose another."],
  ["已加入背景音樂","Background music added"],
  ["音檔太大（超過 25MB），請選短一點的","That audio file is too large (over 25MB). Please choose a shorter one."],
  ["這張相片讀取失敗，換一張試試","Could not read that photo — please try another"],
@@ -2629,6 +2635,10 @@ async function vRec(){
         <button class="btn" id="recBtn" onclick="toggleRec()">${!vOK?"開始錄音":(recSelfie?"📷 開始自拍錄影":"開始錄影片")}</button>
       </div>
       <div class="hint">建議 30～60 秒：先叫名字，再讀經文，最後說一句祝福。</div>
+      ${(vOK&&bgmBlob)?`
+      <hr class="sep">
+      <button class="btn wide ghost" onclick="musicRec()">🎵 不錄音，只配整首音樂</button>
+      <div class="hint">卡片配上整首背景音樂做成影片，不需要開口，音樂播完就自動完成。</div>`:""}
       ${vOK?`
       <div id="selfieWrap" style="${recSelfie?"":"display:none"};margin:14px 0 0;text-align:center">
         <video id="selfiePrev" playsinline webkit-playsinline muted autoplay style="width:170px;height:170px;border-radius:50%;object-fit:cover;transform:scaleX(-1);border:3px solid var(--gold);background:#000"></video>
@@ -2707,6 +2717,79 @@ function drawSelfie(cx,vid,W,H,F){
   cx.lineWidth=Math.max(3,W*.006);cx.strokeStyle="#F4EFE3";cx.stroke();
   cx.beginPath();cx.arc(cxx,cyy,R+Math.round(4*F),0,7);
   cx.lineWidth=Math.max(2,W*.003);cx.strokeStyle="rgba(184,122,34,.85)";cx.stroke();
+}
+
+/* 不錄音、不錄影：卡片配上整首背景音樂，直接做成一支影片 */
+async function musicRec(){
+  if(mr&&mr.state==="recording"){mr.stop();return;}
+  if(!pending){toast("請先選一張卡片");return;}
+  if(!bgmBlob){toast("請先選一首背景音樂");return;}
+  if(!canVideo()){toast("這台裝置不支援自動合成影片");return;}
+  const c=pendCard(), p=S.people.find(x=>x.id===pending.pid);
+  let ac=null,bgmEl=null,bgmURL=null,audioStream=null;
+  try{
+    ac=new (window.AudioContext||window.webkitAudioContext)();
+    try{await ac.resume();}catch(_){}
+    bgmURL=URL.createObjectURL(bgmBlob);
+    bgmEl=new Audio();bgmEl.src=bgmURL;bgmEl.loop=false;bgmEl.crossOrigin="anonymous";
+    const src=ac.createMediaElementSource(bgmEl);
+    const gain=ac.createGain();gain.gain.value=1;
+    const dst=ac.createMediaStreamDestination();
+    src.connect(gain).connect(dst);
+    audioStream=dst.stream;
+  }catch(e){toast("無法讀取這首音樂，請換一首");return;}
+
+  const W=1080,H=1350;
+  const base=document.createElement("canvas");drawCard(base,c,p,W,H);
+  const cv=document.createElement("canvas");cv.width=W;cv.height=H;
+  const cx=cv.getContext("2d");const t0=performance.now();
+  const loop=()=>{
+    const el=(performance.now()-t0)/1000;
+    cx.drawImage(base,0,0);
+    const gx=W*(0.12+0.76*(((el/16)%2>1)?2-(el/16)%2:(el/16)%2));
+    const rg=cx.createRadialGradient(gx,H*.12,10,gx,H*.12,W*.55);
+    rg.addColorStop(0,"rgba(255,255,255,.10)");rg.addColorStop(1,"rgba(255,255,255,0)");
+    cx.fillStyle=rg;cx.fillRect(0,0,W,H);
+    recAnim=requestAnimationFrame(loop);
+  };loop();
+  const lb=document.getElementById("liveBox");
+  if(lb){
+    cv.style.cssText="width:100%;max-width:300px;border-radius:14px;display:block;margin:0 auto;box-shadow:0 6px 20px rgba(0,0,0,.14)";
+    lb.innerHTML="";lb.appendChild(cv);lb.style.display="";
+    const sw=document.getElementById("selfieWrap");if(sw)sw.style.display="none";
+  }
+  const vs=cv.captureStream(24);
+  const stream=new MediaStream([...vs.getVideoTracks(),...audioStream.getAudioTracks()]);
+  const mime=vidMime();
+  try{mr=new MediaRecorder(stream,Object.assign(mime?{mimeType:mime}:{},{videoBitsPerSecond:2200000}));}
+  catch(e){cancelAnimationFrame(recAnim);toast("這台裝置不支援自動合成影片");return;}
+
+  chunks=[];recSec=0;
+  mr.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+  mr.onstop=async()=>{
+    clearInterval(recTimer);cancelAnimationFrame(recAnim);
+    const lb0=document.getElementById("liveBox");
+    if(lb0){lb0.innerHTML="";lb0.style.display="none";}
+    try{if(bgmEl){bgmEl.pause();bgmEl.src="";}}catch(_){}
+    try{if(bgmURL)URL.revokeObjectURL(bgmURL);}catch(_){}
+    try{if(ac)ac.close();}catch(_){}
+    const type=mr.mimeType||mime||"video/webm";
+    const blob=new Blob(chunks,{type});
+    await putRec({id:uid(),ts:Date.now(),blob,mime:type,kind:"video",dur:recSec,pid:pending.pid,
+      sceneId:pending.sid,sceneName:pendName(),cardIdx:pending.i,
+      v:c.v,r:c.r,w:merge(c.w,p),t:c.t,b:c.b});
+    if(pending.pid)markCared(pending.pid,pendName());
+    mr=null;await vRec();toast("影片做好了！可以分享到 LINE");
+    setTimeout(()=>{const el=[...document.querySelectorAll(".sec-t")].find(x=>x.textContent.indexOf("已完成的作品")>=0);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},250);
+  };
+  mr.start(1000);
+  try{await bgmEl.play();}catch(e){}
+  bgmEl.onended=()=>{if(mr&&mr.state==="recording")mr.stop();};
+  const cap=setTimeout(()=>{if(mr&&mr.state==="recording")mr.stop();},8*60*1000);
+  const bt=$("#recBtn");if(bt){bt.textContent="停止並完成";bt.classList.add("danger");bt.setAttribute("onclick","musicRec()");}
+  const st=$("#recSt");if(st)st.innerHTML='<span class="rec-dot" style="display:inline-block;vertical-align:middle;margin-right:8px"></span>音樂卡片製作中…　♪';
+  recTimer=setInterval(()=>{recSec++;const e=$("#recTm");
+    if(e)e.textContent=String(Math.floor(recSec/60)).padStart(2,"0")+":"+String(recSec%60).padStart(2,"0");},1000);
 }
 
 async function toggleRec(){
@@ -2917,7 +3000,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v2.5.0（三語版）</div>
+      <div class="hint">版本 v2.6.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
