@@ -2447,16 +2447,18 @@ function allRec(){return new Promise(r=>{const q=tx("readonly").getAll();q.onsuc
 function delRec(id){return new Promise(r=>{const q=tx("readwrite").delete(id);q.onsuccess=()=>r(1);});}
 
 let mr=null,chunks=[],recTimer=null,recSec=0,pending=null,recAnim=0,recStop=null,recSelfie=false,selfieVid=null,selfieStream=null;
-/* 取實際有畫面的那個 video：畫面上的預覽優先（iOS 對脫離 DOM 的 video 常常不解碼）*/
-function selfieSrc(){const el=document.getElementById("selfiePrev");
-  if(el&&el.videoWidth)return el;
-  if(selfieVid&&selfieVid.videoWidth)return selfieVid;
-  return el||selfieVid;}
+/* iOS 上同一條相機串流若同時接到兩個 <video>，其中一個一定黑掉。
+   因此全程只用畫面上那一個，錄影合成也從它取畫面。 */
+function selfieSrc(){return document.getElementById("selfiePrev");}
 function attachSelfie(){const el=document.getElementById("selfiePrev");
   if(!el||!selfieStream)return;
+  el.muted=true;el.defaultMuted=true;el.playsInline=true;
+  el.setAttribute("playsinline","");el.setAttribute("webkit-playsinline","");
+  el.setAttribute("muted","");el.setAttribute("autoplay","");
   if(el.srcObject!==selfieStream)el.srcObject=selfieStream;
-  el.muted=true;el.playsInline=true;el.setAttribute("playsinline","");
-  const go=()=>{el.play().catch(()=>{});};go();setTimeout(go,120);setTimeout(go,600);}
+  const go=()=>{const q=el.play();if(q&&q.catch)q.catch(()=>{});};
+  el.onloadedmetadata=go;
+  go();[80,300,800,1600].forEach(t=>setTimeout(go,t));}
 function sup(m){try{return window.MediaRecorder&&MediaRecorder.isTypeSupported(m);}catch(e){return false;}}
 function vidMime(){return ["video/mp4;codecs=avc1.42E01E,mp4a.40.2","video/mp4",
   "video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"].find(sup)||"";}
@@ -2489,17 +2491,6 @@ async function vRec(){
        <div class="muted" style="margin-top:6px">${esc(getCard(pending.sid,pending.i).r)}</div>
        <button class="btn sm ghost" style="margin-top:10px" onclick="pending=null;vRec()">換一張</button>
      </div>
-     ${vOK?`<div class="card">
-       <div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin-bottom:8px">錄製方式</div>
-       <div class="row tight">
-         <button class="chip ${!recSelfie?"on":""}" onclick="setSelfie(false)">只有聲音</button>
-         <button class="chip ${recSelfie?"on":""}" onclick="setSelfie(true)">📷 自拍畫面</button>
-       </div>
-       <div id="selfieWrap" style="${recSelfie?"":"display:none"};margin-top:12px;text-align:center">
-         <video id="selfiePrev" playsinline muted autoplay style="width:150px;height:150px;border-radius:50%;object-fit:cover;transform:scaleX(-1);border:3px solid var(--gold);background:#000"></video>
-         <div class="hint">您的臉會以圓形貼在卡片右下角，錄影時同步合成。</div>
-       </div>
-     </div>`:""}
      <div class="card">
        <div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin-bottom:8px">影片版型</div>
        <div class="tplbar">
@@ -2518,6 +2509,17 @@ async function vRec(){
        ${bgmPickerHTML()}
      </div>
      <div class="card" style="text-align:center">
+      ${vOK?`
+      <div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin-bottom:8px;text-align:left">錄製方式</div>
+      <div class="row tight" style="justify-content:center">
+        <button class="chip ${!recSelfie?"on":""}" onclick="setSelfie(false)">只有聲音</button>
+        <button class="chip ${recSelfie?"on":""}" onclick="setSelfie(true)">📷 自拍畫面</button>
+      </div>
+      <div id="selfieWrap" style="${recSelfie?"":"display:none"};margin:12px 0 4px;text-align:center">
+        <video id="selfiePrev" playsinline webkit-playsinline muted autoplay style="width:170px;height:170px;border-radius:50%;object-fit:cover;transform:scaleX(-1);border:3px solid var(--gold);background:#000"></video>
+        <div class="hint">您的臉會以圓形貼在卡片右下角，錄影時同步合成。</div>
+      </div>
+      <hr class="sep">`:""}
       <div id="liveBox" style="display:none;margin-bottom:12px"></div>
       <div id="recSt" class="muted">按下開始，把想說的話錄進去</div>
       <div id="recTm" style="font-family:var(--serif);font-size:calc(34px*var(--fs));margin:8px 0">00:00</div>
@@ -2555,10 +2557,7 @@ async function setSelfie(on){
   if(recSelfie){
     try{
       const cam=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:720},height:{ideal:720}},audio:false});
-      selfieStream=cam;
-      selfieVid=document.createElement("video");selfieVid.playsInline=true;selfieVid.setAttribute("playsinline","");
-      selfieVid.muted=true;selfieVid.autoplay=true;selfieVid.srcObject=cam;
-      selfieVid.play().catch(()=>{});
+      selfieStream=cam;selfieVid=null;
     }catch(e){
       recSelfie=false;selfieVid=null;selfieStream=null;
       toast("無法開啟相機，請允許相機權限");
@@ -2572,8 +2571,8 @@ async function setSelfie(on){
 }
 function stopSelfie(){
   try{if(selfieStream)selfieStream.getTracks().forEach(t=>t.stop());}catch(e){}
-  try{if(selfieVid&&selfieVid.srcObject)selfieVid.srcObject.getTracks().forEach(t=>t.stop());}catch(e){}
-  const el=document.getElementById("selfiePrev");if(el)el.srcObject=null;
+  const el=document.getElementById("selfiePrev");
+  if(el){try{el.pause();}catch(e){}el.srcObject=null;}
   selfieVid=null;selfieStream=null;
 }
 function drawSelfie(cx,vid,W,H,F){
@@ -2806,7 +2805,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v1.7.0（三語版）</div>
+      <div class="hint">版本 v1.8.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
