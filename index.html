@@ -2232,6 +2232,8 @@ function drawCard(cv,c,p,W,H){
   const ctx=cv.getContext("2d");cv.width=W;cv.height=H;
   const T=TPL[curTpl]||TPL.paper;
   const F=W/1080, pad=Math.round(W*.078), iw=W-pad*2;
+  /* 卡片與影片的字級，跟著「設定 → 字級」同步放大或縮小 */
+  const FS=Math.min(1.5,Math.max(1,+(S.set.fs)||1)), FT=F*FS;
   const sans=getComputedStyle(document.body).fontFamily;
   const serif='"Noto Serif TC","Songti TC","STSong","PMingLiU",serif';
   const ink=T.ink, accent=T.accent, gold=T.gold, sub=T.sub;
@@ -2269,7 +2271,7 @@ function drawCard(cv,c,p,W,H){
   drawBorder(ctx,W,H,pad,F,T);
 
   /* --- 團體名（固定在頂端） --- */
-  const grpSz=Math.round(27*F), refSz=Math.round(29*F), blSz=Math.round(32*F), sigSz=Math.round(26*F);
+  const grpSz=Math.round(27*FT), refSz=Math.round(29*FT), blSz=Math.round(32*FT), sigSz=Math.round(26*FT);
   ctx.textAlign="center";ctx.fillStyle=subDeep;ctx.font=`600 ${grpSz}px ${sans}`;
   const grp=LT((S.set.group||"").trim());
   const grpY=pad+Math.round(40*F);
@@ -2289,13 +2291,13 @@ function drawCard(cv,c,p,W,H){
   const topRoom=pad+Math.round(96*F), botRoom=pad+Math.round(160*F)+liftRoom;
   const room=H-topRoom-botRoom;
 
-  let vs=Math.round(54*F),vl;
-  while(true){ctx.font=`600 ${vs}px ${serif}`;vl=wrap(ctx,"「"+c.v+"」",iw);
+  let vs=Math.round(54*FT),vl;
+  while(true){ctx.font=`600 ${vs}px ${serif}`;vl=wrap(ctx,QO()+c.v+QC(),iw);
     if(vl.length<=6||vs<=Math.round(30*F))break;vs-=Math.round(3*F);}
 
   const bodyTxt=merge(c.w,p);
   const fixed=vs*.9+vl.length*vs*1.55+Math.round(52*F)+Math.round(54*F);
-  let bs=Math.round(37*F),bl;
+  let bs=Math.round(37*FT),bl;
   while(true){ctx.font=`${bs}px ${sans}`;bl=wrap(ctx,bodyTxt,iw);
     if(fixed+bl.length*bs*1.74<=room||bs<=Math.round(24*F))break;bs-=Math.round(2*F);}
 
@@ -2865,7 +2867,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v2.1.0（三語版）</div>
+      <div class="hint">版本 v2.2.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
@@ -2933,15 +2935,16 @@ function xzSystem(){
     "【嚴格的輸出格式】只輸出以下三個區塊，不要有任何其他前言、說明或標題符號：",
     "第一行：VERSE｜經文全文（一定用《和合本》，且只引用你確有把握的經文，絕不杜撰）",
     "第二行：REF｜經文出處（例如：詩篇 23:1）",
-    "第三行開始：WORD｜三到五句溫暖的問候與勸勉，口語、真摯、不說教。",
+    "第三行開始：WORD｜二到三句溫暖的問候與勸勉，口語、真摯、不說教。全部合計不超過 80 個字。",
     "以收卡人的稱呼直接開頭，例如「王大明弟兄平安！」。可換行，用真實的換行分句。",
     "",
     (LG()==="en"
-      ? "【STYLE】Reply entirely in English. Quote Scripture from the World English Bible (public domain), rendering \"Yahweh\" as \"the LORD\". Warm, plain, vivid but brief (three to five sentences of greeting). Begin the WORD block by addressing the recipient by name."
+      ? "【STYLE】Reply entirely in English. Quote Scripture from the World English Bible (public domain), rendering \"Yahweh\" as \"the LORD\". Warm, plain and brief \u2014 two or three short sentences, no more than 55 words in total. Begin the WORD block by addressing the recipient by name."
       : (LG()==="zh-Hans"
-        ? "【風格】一律簡體中文。深入淺出、善用比喻但精簡（問候三到五句即可）。"
-        : "【風格】一律繁體中文。深入淺出、善用比喻但精簡（問候三到五句即可）。")),
-    "不用 Markdown、不用星號井號、不用條列符號。經文與問候都要能被溫柔地讀出來。",
+        ? "【風格】一律簡體中文。深入淺出、精簡有力（問候二到三句、合計 80 字內）。"
+        : "【風格】一律繁體中文。深入淺出、精簡有力（問候二到三句、合計 80 字內）。")),
+    "這是要印在小小一張關懷卡上的字，寧可少講一句，也不要囉嗦。每句話都要能被溫柔地讀出來。",
+    "不用 Markdown、不用星號井號、不用條列符號。",
     "不要杜撰經文；若不確定經節，寧可選一節你完全有把握的相近經文。"
   ].join("\n");
 }
