@@ -1,7 +1,7 @@
 /* 321愛的關懷 · Service Worker
    每次更新內容，請把 CACHE 版號往上跳一號（例如 v1.4.0 → v1.4.1），
    長輩的手機才會拿到新版本。 */
-const CACHE = "care321-v2.7.0";
+const CACHE = "care321-v2.8.0";
 
 const SHELL = [
   "./",
@@ -44,6 +44,12 @@ self.addEventListener("fetch", e => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  /* 版本檔一律直接連網，不能走快取，否則永遠檢查不到新版 */
+  if (url.pathname.endsWith("/version.json") || url.pathname.endsWith("version.json")) {
+    e.respondWith(fetch(req, { cache: "no-store" }).catch(() => caches.match(req)));
+    return;
+  }
 
   const isDoc = req.mode === "navigate" ||
                 (req.headers.get("accept") || "").includes("text/html");

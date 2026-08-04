@@ -1671,6 +1671,8 @@ var EN_RULES=[
  ["兩個核心：讓耶穌作王、讓耶穌得著一切的榮耀。","Two cores: let Jesus reign, and let Jesus receive all the glory."],
  ["一個目的：建立屬神的體系。","One purpose: to build a system that belongs to God."],
  ["所有名冊與紀錄都只存在您這支手機裡，不會上傳到任何伺服器。牧養的資料是弟兄姊妹的隱私，請妥善保管，並定期備份。","All names and records stay on this phone and are never uploaded to any server. Shepherding notes are private to those you serve — keep them safe and back them up regularly."],
+ ["有新版本，點一下更新","A new version is ready — tap to update"],
+ ["正在更新到最新版…","Updating to the latest version…"],
  ["強制更新到最新版","Force update to the latest version"],
 
  /* AI小智 */
@@ -3000,7 +3002,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v2.7.0（三語版）</div>
+      <div class="hint">版本 v2.8.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
@@ -3036,6 +3038,58 @@ function expICS(){
   L.push("END:VCALENDAR");
   if(L.length<=5){toast("還沒有填寫生日或紀念日");return;}
   dl("321care.ics",L.join("\r\n"),"text/calendar");toast("已匯出，請開啟檔案加入行事曆");
+}
+/* ================= 自動更新 =================
+   每次改版：index.html 的 APP_VER、version.json、sw.js 的 CACHE 版號要一起跳。
+   App 開啟時與每次切回前景時（最多每 5 分鐘一次）向伺服器問一次版本，
+   有新版就在使用者不忙的時候自動換版；正在錄影或打字時只提示，不打斷。 */
+const APP_VER="2.8.0";
+let __lastChk=0,__upd=false;
+function appBusy(){
+  if(mr&&mr.state==="recording")return true;
+  const sh=document.getElementById("sheet");
+  if(sh&&sh.classList.contains("on"))return true;
+  const a=document.activeElement;
+  if(a&&(a.tagName==="INPUT"||a.tagName==="TEXTAREA"||a.tagName==="SELECT"))return true;
+  const st=document.getElementById("stage");
+  if(st&&st.classList.contains("on"))return true;
+  return false;
+}
+function updBanner(){
+  if(document.getElementById("updBar"))return;
+  const d=document.createElement("div");
+  d.id="updBar";
+  d.style.cssText="position:fixed;left:12px;right:12px;bottom:calc(var(--navh,72px) + 12px);z-index:9999;"+
+    "background:var(--accent,#1F4B45);color:#fff;border-radius:14px;padding:13px 16px;"+
+    "font-size:calc(16px*var(--fs));text-align:center;box-shadow:0 8px 26px rgba(0,0,0,.22)";
+  d.textContent=LT("有新版本，點一下更新");
+  d.onclick=()=>doUpdate();
+  document.body.appendChild(d);
+}
+function doUpdate(){
+  const go=()=>setTimeout(()=>location.reload(true),400);
+  try{
+    if(window.caches)caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).then(go);
+    else go();
+  }catch(e){go();}
+  if("serviceWorker" in navigator){
+    navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>{try{r.update();}catch(_){}}));
+  }
+}
+async function checkUpdate(){
+  const now=Date.now();
+  if(__upd||now-__lastChk<5*60*1000)return;
+  __lastChk=now;
+  try{
+    const r=await fetch("version.json?t="+now,{cache:"no-store"});
+    if(!r.ok)return;
+    const j=await r.json();
+    if(!j||!j.version||j.version===APP_VER)return;
+    __upd=true;
+    if(appBusy()){updBanner();return;}
+    toast("正在更新到最新版…");
+    doUpdate();
+  }catch(e){}
 }
 function forceUpdate(){
   if("serviceWorker" in navigator)navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister()));
@@ -3230,7 +3284,22 @@ function xzMakeImg(){
 (async()=>{
   try{await openDB();}catch(e){}
   drawNav();render();
-  if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+  if("serviceWorker" in navigator){
+    navigator.serviceWorker.register("sw.js").then(reg=>{
+      try{reg.update();}catch(e){}
+      reg.addEventListener&&reg.addEventListener("updatefound",()=>{
+        const nw=reg.installing;
+        if(!nw)return;
+        nw.addEventListener("statechange",()=>{
+          if(nw.state==="installed"&&navigator.serviceWorker.controller)checkUpdate();
+        });
+      });
+    }).catch(()=>{});
+  }
+  /* 開啟時查一次，之後每次切回前景再查（最多每 5 分鐘一次） */
+  setTimeout(checkUpdate,1500);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkUpdate();});
+  window.addEventListener("focus",()=>checkUpdate());
 })();
 
 </script>
