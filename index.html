@@ -1569,6 +1569,7 @@ var EN_RULES=[
  ["從檔案選音樂","Choose music"],
  ["選一首詩歌或輕音樂當背景，錄影或錄音時會輕輕鋪在您的聲音底下。","Pick a hymn or soft music; it will play quietly under your voice while recording."],
  ["錄製時會自動循環播放，混進您的影片或錄音裡。","It loops automatically and is mixed into your video or audio."],
+ ["找不到您的音檔時，請在跳出的視窗左下角按「瀏覽」，再到 iCloud 雲碟或「我的 iPhone」裡尋找。","If your audio file is not listed, tap “Browse” at the bottom left of the picker and look in iCloud Drive or On My iPhone."],
  ["音樂音量","Music volume"],["換一首","Change track"],["移除音樂","Remove music"],
  ["小聲","Soft"],["適中","Medium"],["明顯","Loud"],
  ["已加入背景音樂","Background music added"],
@@ -2340,7 +2341,7 @@ function photoPickerHTML(){
   if(!photoImg){
     return `<label class="btn ghost wide" style="cursor:pointer">
         從相簿選相片
-        <input type="file" accept="image/*" style="display:none" onchange="pickPhoto(this)">
+        <input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp" style="display:none" onchange="pickPhoto(this)">
       </label>
       <div class="hint">可把相片當卡片背景，或像貼紙貼在卡片右下角。</div>`;
   }
@@ -2349,7 +2350,7 @@ function photoPickerHTML(){
       <button class="chip ${photoMode==="sticker"?"on":""}" onclick="setPhotoMode('sticker')">貼在卡片上</button>
     </div>
     <div class="row tight">
-      <label class="btn ghost sm" style="cursor:pointer">換一張<input type="file" accept="image/*" style="display:none" onchange="pickPhoto(this)"></label>
+      <label class="btn ghost sm" style="cursor:pointer">換一張<input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp" style="display:none" onchange="pickPhoto(this)"></label>
       <button class="btn ghost sm" style="color:var(--red);border-color:var(--red)" onclick="clearPhoto()">移除相片</button>
     </div>`;
 }
@@ -2357,9 +2358,10 @@ function bgmPickerHTML(){
   if(!bgmBlob){
     return `<label class="btn ghost wide" style="cursor:pointer">
         從檔案選音樂
-        <input type="file" accept="audio/*" style="display:none" onchange="pickBgm(this)">
+        <input type="file" accept="audio/*,audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/x-wav,audio/aiff,audio/flac,audio/ogg,.mp3,.m4a,.aac,.wav,.aif,.aiff,.caf,.flac,.ogg,.opus,.mp4" style="display:none" onchange="pickBgm(this)">
       </label>
-      <div class="hint">選一首詩歌或輕音樂當背景，錄影或錄音時會輕輕鋪在您的聲音底下。</div>`;
+      <div class="hint">選一首詩歌或輕音樂當背景，錄影或錄音時會輕輕鋪在您的聲音底下。</div>
+      <div class="hint">找不到您的音檔時，請在跳出的視窗左下角按「瀏覽」，再到 iCloud 雲碟或「我的 iPhone」裡尋找。</div>`;
   }
   const vols=[[0.12,"小聲"],[0.22,"適中"],[0.38,"明顯"]];
   return `<div class="card" style="background:var(--mist);border:0;padding:12px 14px;margin-bottom:8px">
@@ -2371,7 +2373,7 @@ function bgmPickerHTML(){
       ${vols.map(([v,n])=>`<button class="chip ${Math.abs(bgmVol-v)<0.01?"on":""}" onclick="setBgmVol(${v})">${n}</button>`).join("")}
     </div>
     <div class="row tight">
-      <label class="btn ghost sm" style="cursor:pointer">換一首<input type="file" accept="audio/*" style="display:none" onchange="pickBgm(this)"></label>
+      <label class="btn ghost sm" style="cursor:pointer">換一首<input type="file" accept="audio/*,audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/x-wav,audio/aiff,audio/flac,audio/ogg,.mp3,.m4a,.aac,.wav,.aif,.aiff,.caf,.flac,.ogg,.opus,.mp4" style="display:none" onchange="pickBgm(this)"></label>
       <button class="btn ghost sm" style="color:var(--red);border-color:var(--red)" onclick="clearBgm()">移除音樂</button>
     </div>`;
 }
@@ -2433,7 +2435,17 @@ function putRec(o){return new Promise(r=>{const q=tx("readwrite").put(o);q.onsuc
 function allRec(){return new Promise(r=>{const q=tx("readonly").getAll();q.onsuccess=()=>r(q.result||[]);q.onerror=()=>r([]);});}
 function delRec(id){return new Promise(r=>{const q=tx("readwrite").delete(id);q.onsuccess=()=>r(1);});}
 
-let mr=null,chunks=[],recTimer=null,recSec=0,pending=null,recAnim=0,recStop=null,recSelfie=false,selfieVid=null;
+let mr=null,chunks=[],recTimer=null,recSec=0,pending=null,recAnim=0,recStop=null,recSelfie=false,selfieVid=null,selfieStream=null;
+/* 取實際有畫面的那個 video：畫面上的預覽優先（iOS 對脫離 DOM 的 video 常常不解碼）*/
+function selfieSrc(){const el=document.getElementById("selfiePrev");
+  if(el&&el.videoWidth)return el;
+  if(selfieVid&&selfieVid.videoWidth)return selfieVid;
+  return el||selfieVid;}
+function attachSelfie(){const el=document.getElementById("selfiePrev");
+  if(!el||!selfieStream)return;
+  if(el.srcObject!==selfieStream)el.srcObject=selfieStream;
+  el.muted=true;el.playsInline=true;el.setAttribute("playsinline","");
+  const go=()=>{el.play().catch(()=>{});};go();setTimeout(go,120);setTimeout(go,600);}
 function sup(m){try{return window.MediaRecorder&&MediaRecorder.isTypeSupported(m);}catch(e){return false;}}
 function vidMime(){return ["video/mp4;codecs=avc1.42E01E,mp4a.40.2","video/mp4",
   "video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"].find(sup)||"";}
@@ -2522,6 +2534,7 @@ async function vRec(){
     <div style="height:10px"></div>
   </div>`;
   localizeAll();
+  if(recSelfie)attachSelfie();
 }
 
 async function setSelfie(on){
@@ -2530,22 +2543,26 @@ async function setSelfie(on){
   if(recSelfie){
     try{
       const cam=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:720},height:{ideal:720}},audio:false});
-      selfieVid=document.createElement("video");selfieVid.playsInline=true;selfieVid.muted=true;selfieVid.autoplay=true;
-      selfieVid.srcObject=cam;await selfieVid.play().catch(()=>{});
-      const prev=$("#selfiePrev");if(prev){prev.srcObject=cam;prev.play().catch(()=>{});}
+      selfieStream=cam;
+      selfieVid=document.createElement("video");selfieVid.playsInline=true;selfieVid.setAttribute("playsinline","");
+      selfieVid.muted=true;selfieVid.autoplay=true;selfieVid.srcObject=cam;
+      selfieVid.play().catch(()=>{});
     }catch(e){
-      recSelfie=false;selfieVid=null;
+      recSelfie=false;selfieVid=null;selfieStream=null;
       toast("無法開啟相機，請允許相機權限");
       const w=$("#selfieWrap");if(w)w.style.display="none";
       vRec();return;
     }
   }else stopSelfie();
-  // 更新按鈕文字與 chip 狀態
-  vRec();
+  // 重繪後畫面上的 <video> 是全新的，必須重新接上串流
+  await vRec();
+  attachSelfie();
 }
 function stopSelfie(){
-  if(selfieVid&&selfieVid.srcObject){try{selfieVid.srcObject.getTracks().forEach(t=>t.stop());}catch(e){}}
-  selfieVid=null;
+  try{if(selfieStream)selfieStream.getTracks().forEach(t=>t.stop());}catch(e){}
+  try{if(selfieVid&&selfieVid.srcObject)selfieVid.srcObject.getTracks().forEach(t=>t.stop());}catch(e){}
+  const el=document.getElementById("selfiePrev");if(el)el.srcObject=null;
+  selfieVid=null;selfieStream=null;
 }
 function drawSelfie(cx,vid,W,H,F){
   if(!vid||!vid.videoWidth)return;
@@ -2580,7 +2597,8 @@ async function toggleRec(){
   try{mic=await navigator.mediaDevices.getUserMedia({audio:true});}
   catch(e){toast("無法使用麥克風，請允許權限");return;}
 
-  const useSelfie=recSelfie&&selfieVid&&selfieVid.videoWidth;
+  const svid=selfieSrc();
+  const useSelfie=recSelfie&&svid&&svid.videoWidth;
   // 背景音樂：用 Web Audio 把麥克風與音樂混流（只進錄音，不外放，避免回授）
   let ac=null,bgmEl=null,bgmURL=null,audioStream=mic;
   if(bgmBlob){
@@ -2615,7 +2633,7 @@ async function toggleRec(){
         const rg=cx.createRadialGradient(gx,H*.12,10,gx,H*.12,W*.55);
         rg.addColorStop(0,"rgba(255,255,255,.10)");rg.addColorStop(1,"rgba(255,255,255,0)");
         cx.fillStyle=rg;cx.fillRect(0,0,W,H);
-        if(useSelfie)drawSelfie(cx,selfieVid,W,H,F);
+        if(useSelfie)drawSelfie(cx,svid,W,H,F);
         recAnim=requestAnimationFrame(loop);
       };loop();
       const vs=cv.captureStream(24);
@@ -2768,7 +2786,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v1.4.0（三語版）</div>
+      <div class="hint">版本 v1.5.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
