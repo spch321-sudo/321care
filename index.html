@@ -2129,7 +2129,7 @@ function copyTxt(sid,i){
 }
 
 /* ================= 圖卡繪製 ================= */
-const SIZES={p:[1080,1350,"直式（推薦）"],s:[1080,1080,"方形"],w:[1920,1080,"橫式"]};
+const SIZES={p:[1080,1920,"直式（推薦）"],s:[1080,1080,"方形"],w:[1920,1080,"橫式"]};
 let curSize="p";
 function wrap(ctx,text,maxW){
   const out=[];
@@ -2739,7 +2739,7 @@ async function musicRec(){
     audioStream=dst.stream;
   }catch(e){toast("無法讀取這首音樂，請換一首");return;}
 
-  const W=1080,H=1350;
+  const W=1080,H=1920;
   const base=document.createElement("canvas");drawCard(base,c,p,W,H);
   const cv=document.createElement("canvas");cv.width=W;cv.height=H;
   const cx=cv.getContext("2d");const t0=performance.now();
@@ -2823,7 +2823,7 @@ async function toggleRec(){
   let stream=audioStream, kind="audio", mime=audMime();
   if(canVideo()){
     try{
-      const W=1080,H=1350;
+      const W=1080,H=1920;
       selfieLayout=!!useSelfie;suppressSticker=!!useSelfie;
       const base=document.createElement("canvas");drawCard(base,c,p,W,H);
       selfieLayout=false;suppressSticker=false;
@@ -3000,7 +3000,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v2.6.0（三語版）</div>
+      <div class="hint">版本 v2.7.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
