@@ -1572,8 +1572,9 @@ var EN_RULES=[
  ["選一首詩歌或輕音樂當背景，錄影或錄音時會輕輕鋪在您的聲音底下。","Pick a hymn or soft music; it will play quietly under your voice while recording."],
  ["錄製時會自動循環播放，混進您的影片或錄音裡。","It loops automatically and is mixed into your video or audio."],
  ["選擇視窗現在會顯示所有檔案。若一時找不到，請按左下角「瀏覽」，再到 iCloud 雲碟或「我的 iPhone」裡尋找。","The picker now shows every file. If you cannot find yours, tap “Browse” at the bottom left and look in iCloud Drive or On My iPhone."],
- ["卡片上的字級","Text size on the card"],
- ["只影響卡片與影片上的字，不影響 App 的介面。","This only changes the text on cards and videos, not the app interface."],
+ ["內文字級","Message text size"],
+ ["只放大卡片與影片上的問候內文（AI小智寫的那幾句），經文與署名維持不變。","This only resizes the greeting text on cards and videos; the verse and signature stay as they are."],
+ ["小一點","Smaller"],
  ["相片大小","Photo size"],["相片位置","Photo position"],
  ["小張","Small"],["中等","Medium"],["大張","Large"],["滿版","Extra large"],
  ["署名會自動排到相片的另一邊，不會被蓋住。","The signature moves to the opposite side of the photo so it is never covered."],
@@ -2246,7 +2247,9 @@ function drawCard(cv,c,p,W,H){
   const T=TPL[curTpl]||TPL.paper;
   const F=W/1080, pad=Math.round(W*.078), iw=W-pad*2;
   /* 卡片與影片的字級，跟著「設定 → 字級」同步放大或縮小 */
-  const FS=Math.min(1.5,Math.max(1,+(S.set.fs)||1))*(+(S.set.cardFs)||1), FT=F*FS;
+  const FS=Math.min(1.5,Math.max(1,+(S.set.fs)||1)), FT=F*FS;
+  /* 「內文字級」只放大問候內文，經文與署名維持原比例，版面才不會被擠掉 */
+  const BFS=Math.min(1.8,Math.max(0.85,+(S.set.cardFs)||1)), FB=FT*BFS;
   const sans=getComputedStyle(document.body).fontFamily;
   const serif='"Noto Serif TC","Songti TC","STSong","PMingLiU",serif';
   const ink=T.ink, accent=T.accent, gold=T.gold, sub=T.sub;
@@ -2312,7 +2315,7 @@ function drawCard(cv,c,p,W,H){
 
   const bodyTxt=LT(merge(c.w,p));
   const fixed=vs*.9+vl.length*vs*1.55+Math.round(52*F)+Math.round(54*F);
-  let bs=Math.round(40*FT),bl;
+  let bs=Math.round(40*FB),bl;
   while(true){ctx.font=`${bs}px ${sans}`;bl=wrap(ctx,bodyTxt,iw);
     if(fixed+bl.length*bs*1.74<=room||bs<=Math.round(24*F))break;bs-=Math.round(2*F);}
 
@@ -2451,14 +2454,14 @@ function bgmPickerHTML(){
       <button class="btn ghost sm" style="color:var(--red);border-color:var(--red)" onclick="clearBgm()">移除音樂</button>
     </div>`;
 }
-const CARD_FS=[[1,"標準"],[1.15,"大"],[1.3,"特大"],[1.5,"超大"]];
+const CARD_FS=[[0.9,"小一點"],[1,"標準"],[1.2,"大"],[1.45,"特大"],[1.7,"超大"]];
 function cardFsHTML(reCall){
   const cur=+(S.set.cardFs)||1;
-  return `<div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin:14px 0 8px">卡片上的字級</div>
+  return `<div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin:14px 0 8px">內文字級</div>
    <div class="row tight">
      ${CARD_FS.map(([v,nm])=>`<button class="chip ${Math.abs(cur-v)<0.01?"on":""}" onclick="setCardFs(${v},'${reCall}')">${nm}</button>`).join("")}
    </div>
-   <div class="hint">只影響卡片與影片上的字，不影響 App 的介面。</div>`;
+   <div class="hint">只放大卡片與影片上的問候內文（AI小智寫的那幾句），經文與署名維持不變。</div>`;
 }
 function setCardFs(v,reCall){S.set.cardFs=v;save();if(reCall){try{(0,eval)(reCall);}catch(e){}}}
 function openImgSheet(c,p,reCall,fname){
@@ -2914,7 +2917,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v2.4.0（三語版）</div>
+      <div class="hint">版本 v2.5.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
