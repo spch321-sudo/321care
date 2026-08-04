@@ -1540,9 +1540,10 @@ var EN_RULES=[
  ["說明對象與情況，AI小智會為您寫出合適的經文與問候，可直接做成卡片。","Describe the person and the situation, and AI Sage will write a fitting verse and greeting you can turn straight into a card."],
  ["或從現成範本挑選","Or choose a ready-made template"],
  ["換一個場景","Change occasion"],["送給","For "],
- ["做成圖卡","Make an image card"],["複製文字","Copy text"],["改一改","Edit"],["錄音做卡","Record a voice card"],
+ ["做成圖卡","Make an image card"],["複製文字","Copy text"],["改一改文字","Edit the words"],["改一改","Edit"],["錄音做卡","Record a voice card"],
  ["送出後：記為今日已關懷","After sending: log as today's care"],
  ["調整這張卡片","Adjust this card"],
+ ["可用代碼：{稱呼}{姓名}{配偶}{家人}{團體}{署名}，錄影時會自動換成真實資料。","Codes you can use: {稱呼}{姓名}{配偶}{家人}{團體}{署名} — they are replaced with the real details when you record."],
  ["可用代碼：","Available codes: "],
  ["送出時會自動換成真實資料。","These are replaced with the real details when sent."],
  ["安慰造就勸勉的話","Words of comfort and encouragement"],
@@ -2284,8 +2285,7 @@ function drawCard(cv,c,p,W,H){
   /* --- 版位計算（經文＋內文垂直置中於團體名之下） --- */
   const hasStickerLayout=photoImg&&photoMode==="sticker"&&!suppressSticker;
   /* 祝福語與署名會因為貼紙或自拍而往上移，底部要預留同樣的高度，內文才不會壓過去 */
-  const liftRoom=hasStickerLayout?Math.round(Math.min(W,H)*0.34)
-                :(selfieLayout?Math.round(Math.min(W,H)*0.24):0);
+  const liftRoom=hasStickerLayout?Math.round(Math.min(W,H)*0.34):0;
   const topRoom=pad+Math.round(96*F), botRoom=pad+Math.round(160*F)+liftRoom;
   const room=H-topRoom-botRoom;
 
@@ -2297,7 +2297,7 @@ function drawCard(cv,c,p,W,H){
   const fixed=vs*.9+vl.length*vs*1.55+Math.round(52*F)+Math.round(54*F);
   let bs=Math.round(37*F),bl;
   while(true){ctx.font=`${bs}px ${sans}`;bl=wrap(ctx,bodyTxt,iw);
-    if(fixed+bl.length*bs*1.74<=room||bs<=Math.round(17*F))break;bs-=Math.round(2*F);}
+    if(fixed+bl.length*bs*1.74<=room||bs<=Math.round(24*F))break;bs-=Math.round(2*F);}
 
   const total=fixed+bl.length*bs*1.74;
   let y=topRoom+Math.max(0,(room-total)/2);
@@ -2324,12 +2324,27 @@ function drawCard(cv,c,p,W,H){
 
   /* --- 祝福與署名（近底部；自拍或貼相片時上移讓開） --- */
   const hasSticker=photoImg&&photoMode==="sticker"&&!suppressSticker;
-  const lift=hasSticker?Math.round(Math.min(W,H)*0.30):(selfieLayout?Math.round(Math.min(W,H)*0.24):0);
-  ctx.textAlign="center";ctx.fillStyle=accent;ctx.font=`600 ${blSz}px ${serif}`;
-  ctx.fillText(c.b||BL()[0],W/2,H-pad*.72-Math.round(96*F)-lift);
+  const lift=hasSticker?Math.round(Math.min(W,H)*0.30):0;
+  /* 自拍圓框在右下角，祝福語與署名就靠左排，彼此讓開 */
+  const selfR=Math.round(Math.min(W,H)*0.115), selfPad=Math.round(W*.078);
+  const sideMode=!!selfieLayout&&!hasSticker;
+  const leftEdge=W-selfPad-selfR*2-Math.round(24*F);
+  const cxT=sideMode?(pad+leftEdge)/2:W/2;
+  const maxT=sideMode?(leftEdge-pad):iw;
+  const fitFont=(txt,size,weight,fam)=>{let z=size;
+    while(z>Math.round(16*F)){ctx.font=`${weight} ${z}px ${fam}`;
+      if(ctx.measureText(txt).width<=maxT)break;z-=Math.round(2*F);}
+    ctx.font=`${weight} ${z}px ${fam}`;return z;};
+  ctx.textAlign="center";ctx.fillStyle=accent;
+  const blTxt=c.b||BL()[0];
+  fitFont(blTxt,blSz,"600",serif);
+  ctx.fillText(blTxt,cxT,H-pad*.72-Math.round(96*F)-lift);
   const sig=LT((S.set.signer||"").trim());
-  ctx.fillStyle=subDeep;ctx.font=`600 ${sigSz}px ${sans}`;
-  if(sig)ctx.fillText(sig+(isEN()?"":"　敬上"),W/2,H-pad*.72-Math.round(30*F)-lift);
+  if(sig){
+    const sigTxt=sig+(isEN()?"":"　敬上");
+    ctx.fillStyle=subDeep;fitFont(sigTxt,sigSz,"600",sans);
+    ctx.fillText(sigTxt,cxT,H-pad*.72-Math.round(30*F)-lift);
+  }
 
   /* --- 相片貼紙（右下角，拍立得風格） --- */
   if(hasSticker){
@@ -2479,6 +2494,24 @@ function extOf(m){return (m||"").indexOf("mp4")>=0?(m.indexOf("video")===0?".mp4
 
 function toRec(sid,i){pending={sid,i,pid:curPid};go("rec");}
 /* AI小智寫好的稿子，也可以直接錄成影片 */
+function recEditCard(){
+  if(!pending)return;
+  const c=pendCard();
+  sheet("調整這張卡片",`
+   <div class="hint">可用代碼：{稱呼}{姓名}{配偶}{家人}{團體}{署名}，錄影時會自動換成真實資料。</div>
+   <label class="f">經文</label><textarea id="rc_v" rows="3">${esc(c.v||"")}</textarea>
+   <label class="f">出處</label><input id="rc_r" value="${esc(c.r||"")}">
+   <label class="f">安慰造就勸勉的話</label><textarea id="rc_w" rows="8">${esc(c.w||"")}</textarea>
+   <label class="f">祝福語</label><select id="rc_b">${BL().map(b=>`<option value="${esc(b)}" ${b===(c.b||BL()[0])?"selected":""}>${b}</option>`).join("")}</select>
+   <hr class="sep">
+   <button class="btn wide" onclick="recSaveCard()">套用</button>`);
+}
+function recSaveCard(){
+  const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
+  if(!g("rc_w").trim()){toast("問候的話不能留空");return;}
+  pending.card={v:g("rc_v").trim(),r:g("rc_r").trim(),w:g("rc_w"),b:g("rc_b")};
+  closeSheet();vRec();toast("已套用");
+}
 function pendCard(){return (pending&&pending.card)?pending.card:getCard(pending.sid,pending.i);}
 function pendName(){return (pending&&pending.card)?"AI小智卡片":((SC().find(s=>s.id===pending.sid)||{}).n||"");}
 function xzToRec(){
@@ -2508,7 +2541,10 @@ async function vRec(){
        <div class="muted">${esc(pd.n)}　${pending.pid?"送給 "+esc((S.people.find(x=>x.id===pending.pid)||{}).name||""):"未指定對象"}</div>
        <div style="font-family:var(--serif);font-size:calc(19px*var(--fs));margin-top:8px;line-height:1.8">${QO()}${esc(pendCard().v)}${QC()}</div>
        <div class="muted" style="margin-top:6px">${esc(pendCard().r)}</div>
-       <button class="btn sm ghost" style="margin-top:10px" onclick="pending=null;vRec()">換一張</button>
+       <div class="row tight" style="margin-top:10px">
+         <button class="btn sm ghost" onclick="recEditCard()">改一改文字</button>
+         <button class="btn sm ghost" onclick="pending=null;vRec()">換一張</button>
+       </div>
      </div>
      <div class="card">
        <div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin-bottom:8px">影片版型</div>
@@ -2829,7 +2865,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v2.0.0（三語版）</div>
+      <div class="hint">版本 v2.1.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
