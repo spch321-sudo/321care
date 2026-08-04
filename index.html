@@ -1605,7 +1605,8 @@ var EN_RULES=[
  ["開始自拍錄影","Start selfie video"],["開始錄影片","Start video"],["開始錄音","Start recording"],
  ["秒：先叫名字，再讀經文，最後說一句祝福。","— say their name, read the verse, then close with a blessing."],
  ["還沒有選卡片","No card selected yet"],
- ["請到「卡片」頁選一張，按「錄音做卡」。","Go to the Cards tab, pick one, and tap “Record a voice card”."],
+ ["請到「卡片」頁選一張，按「錄音做卡」；或請AI小智當場寫一張。","Go to the Cards tab and tap “Record a voice card”, or ask AI Sage to write one right here."],
+ ["AI小智卡片","AI Sage card"],
  ["去挑一張卡片","Go choose a card"],
  ["還沒有作品。第一次錄可能會不習慣，錄壞了就重錄，弟兄姊妹聽的是您的心意。","Nothing recorded yet. The first attempt always feels awkward — just record again. What they hear is your heart."],
  ["已完成的作品","Finished pieces"],
@@ -1668,6 +1669,7 @@ var EN_RULES=[
  ["寫得越具體，AI小智寫得越貼近。可以留空，AI小智會按場景發揮。","The more detail you give, the closer AI Sage can write. You may leave it blank and AI Sage will work from the occasion."],
  ["AI小智思想中…","AI Sage is thinking…"],
  ["✨ 請AI小智寫一張","✨ Ask AI Sage to write one"],
+ ["請AI小智寫一張","Ask AI Sage to write one"],
  ["請至少選一個場景，或描述情況","Please choose an occasion or describe the situation"],
  ["AI小智正在為","AI Sage is finding the right words for "],
  ["這位弟兄姊妹","this brother or sister"],
@@ -2232,6 +2234,12 @@ function drawCard(cv,c,p,W,H){
   const sans=getComputedStyle(document.body).fontFamily;
   const serif='"Noto Serif TC","Songti TC","STSong","PMingLiU",serif';
   const ink=T.ink, accent=T.accent, gold=T.gold, sub=T.sub;
+  /* 團體名與署名：往主文字色再壓深一點，長輩看得更清楚 */
+  const hx=c0=>{const h=String(c0).replace("#","");
+    return h.length===3?[0,1,2].map(i=>parseInt(h[i]+h[i],16)):[0,2,4].map(i=>parseInt(h.slice(i,i+2),16));};
+  const mixC=(a,b,t)=>{const A=hx(a),B=hx(b);
+    return "#"+[0,1,2].map(i=>Math.round(A[i]+(B[i]-A[i])*t).toString(16).padStart(2,"0")).join("");};
+  const subDeep=mixC(T.sub,T.ink,.55);
 
   /* --- 背景漸層（相片模式時作為底色） --- */
   const g=ctx.createLinearGradient(0,0,W*.3,H);
@@ -2261,7 +2269,7 @@ function drawCard(cv,c,p,W,H){
 
   /* --- 團體名（固定在頂端） --- */
   const grpSz=Math.round(27*F), refSz=Math.round(29*F), blSz=Math.round(32*F), sigSz=Math.round(26*F);
-  ctx.textAlign="center";ctx.fillStyle=sub;ctx.font=`${grpSz}px ${sans}`;
+  ctx.textAlign="center";ctx.fillStyle=subDeep;ctx.font=`600 ${grpSz}px ${sans}`;
   const grp=LT((S.set.group||"").trim());
   const grpY=pad+Math.round(40*F);
   if(grp){
@@ -2317,8 +2325,8 @@ function drawCard(cv,c,p,W,H){
   ctx.textAlign="center";ctx.fillStyle=accent;ctx.font=`600 ${blSz}px ${serif}`;
   ctx.fillText(c.b||BL()[0],W/2,H-pad*.72-Math.round(96*F)-lift);
   const sig=LT((S.set.signer||"").trim());
-  ctx.fillStyle=sub;ctx.font=`${sigSz}px ${sans}`;
-  if(sig)ctx.fillText(sig+"　敬上",W/2,H-pad*.72-Math.round(30*F)-lift);
+  ctx.fillStyle=subDeep;ctx.font=`600 ${sigSz}px ${sans}`;
+  if(sig)ctx.fillText(sig+(isEN()?"":"　敬上"),W/2,H-pad*.72-Math.round(30*F)-lift);
 
   /* --- 相片貼紙（右下角，拍立得風格） --- */
   if(hasSticker){
@@ -2467,12 +2475,20 @@ function canVideo(){return !!(vidMime()&&HTMLCanvasElement.prototype.captureStre
 function extOf(m){return (m||"").indexOf("mp4")>=0?(m.indexOf("video")===0?".mp4":".m4a"):(m.indexOf("video")===0?".webm":".webm");}
 
 function toRec(sid,i){pending={sid,i,pid:curPid};go("rec");}
+/* AI小智寫好的稿子，也可以直接錄成影片 */
+function pendCard(){return (pending&&pending.card)?pending.card:getCard(pending.sid,pending.i);}
+function pendName(){return (pending&&pending.card)?"AI小智卡片":((SC().find(s=>s.id===pending.sid)||{}).n||"");}
+function xzToRec(){
+  const rc=xz.result;if(!rc)return;
+  pending={sid:"__xz",i:0,pid:curPid,card:{v:rc.v||"",r:rc.r||"",w:rc.w||"",b:BL()[0]}};
+  closeSheet();go("rec");
+}
 
 async function vRec(){
   __reCall="vRec()";
   const list=db?await allRec():[];
   list.sort((a,b)=>b.ts-a.ts);
-  const pd=pending?SC().find(s=>s.id===pending.sid):null;
+  const pd=pending?{n:pendName()}:null;
   const vOK=canVideo();
   $("#view").innerHTML=`
   <div class="wrap">
@@ -2487,8 +2503,8 @@ async function vRec(){
     <div class="sec-t">要錄哪一張卡片</div>
     ${pd?`<div class="card">
        <div class="muted">${esc(pd.n)}　${pending.pid?"送給 "+esc((S.people.find(x=>x.id===pending.pid)||{}).name||""):"未指定對象"}</div>
-       <div style="font-family:var(--serif);font-size:calc(19px*var(--fs));margin-top:8px;line-height:1.8">「${esc(getCard(pending.sid,pending.i).v)}」</div>
-       <div class="muted" style="margin-top:6px">${esc(getCard(pending.sid,pending.i).r)}</div>
+       <div style="font-family:var(--serif);font-size:calc(19px*var(--fs));margin-top:8px;line-height:1.8">${QO()}${esc(pendCard().v)}${QC()}</div>
+       <div class="muted" style="margin-top:6px">${esc(pendCard().r)}</div>
        <button class="btn sm ghost" style="margin-top:10px" onclick="pending=null;vRec()">換一張</button>
      </div>
      <div class="card">
@@ -2528,8 +2544,9 @@ async function vRec(){
       </div>
       <div class="hint">建議 30～60 秒：先叫名字，再讀經文，最後說一句祝福。</div>
      </div>`
-    :`<div class="empty"><b>還沒有選卡片</b>請到「卡片」頁選一張，按「錄音做卡」。</div>
-      <button class="btn wide ghost" onclick="go('card')">去挑一張卡片</button>`}
+    :`<div class="empty"><b>還沒有選卡片</b>請到「卡片」頁選一張，按「錄音做卡」；或請AI小智當場寫一張。</div>
+      <button class="btn wide gold" onclick="xzOpen()"><span style="font-size:1.15em">✨</span>&nbsp;請AI小智寫一張</button>
+      <button class="btn wide ghost" style="margin-top:9px" onclick="go('card')">去挑一張卡片</button>`}
 
     <div class="sec-t">已完成的作品（${list.length}）</div>
     ${list.length?list.map(r=>{
@@ -2603,7 +2620,7 @@ function drawSelfie(cx,vid,W,H,F){
 async function toggleRec(){
   if(mr&&mr.state==="recording"){mr.stop();return;}
   if(!pending){toast("請先選一張卡片");return;}
-  const c=getCard(pending.sid,pending.i), p=S.people.find(x=>x.id===pending.pid);
+  const c=pendCard(), p=S.people.find(x=>x.id===pending.pid);
   let mic;
   try{mic=await navigator.mediaDevices.getUserMedia({audio:true});}
   catch(e){toast("無法使用麥克風，請允許權限");return;}
@@ -2677,9 +2694,9 @@ async function toggleRec(){
     const type=mr.mimeType||mime||(kind==="video"?"video/webm":"audio/webm");
     const blob=new Blob(chunks,{type});
     await putRec({id:uid(),ts:Date.now(),blob,mime:type,kind,dur:recSec,pid:pending.pid,
-      sceneId:pending.sid,sceneName:SC().find(s=>s.id===pending.sid).n,cardIdx:pending.i,
+      sceneId:pending.sid,sceneName:pendName(),cardIdx:pending.i,
       v:c.v,r:c.r,w:merge(c.w,p),t:c.t,b:c.b});
-    if(pending.pid)markCared(pending.pid,SC().find(s=>s.id===pending.sid).n);
+    if(pending.pid)markCared(pending.pid,pendName());
     mr=null;await vRec();toast(kind==="video"?"影片做好了！可以分享到 LINE":"錄好了！可以播放或分享");
     setTimeout(()=>{const el=[...document.querySelectorAll(".sec-t")].find(x=>x.textContent.indexOf("已完成的作品")>=0);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},250);
   };
@@ -2805,7 +2822,7 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v1.8.0（三語版）</div>
+      <div class="hint">版本 v1.9.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
@@ -2984,6 +3001,7 @@ function xzRenderResult(){
    <div class="row">
      <button class="btn" onclick="xzMakeImg()">做成圖卡</button>
      <button class="btn ghost" onclick="xzCopy()">複製文字</button>
+     <button class="btn ghost sm" onclick="xzToRec()">錄音做卡</button>
      <button class="btn ghost sm" onclick="xzEdit()">改一改</button>
      <button class="btn ghost sm" onclick="xzGenerate()">再寫一張</button>
    </div>
