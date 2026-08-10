@@ -198,7 +198,12 @@ body.dark .tpl.on span:last-child{color:var(--gold-l)}
 .tpl .sw.brd-none{background:repeating-linear-gradient(45deg,var(--mist),var(--mist) 6px,var(--card) 6px,var(--card) 12px)}
 canvas#cv{width:100%;border-radius:16px;border:1px solid var(--line);display:block}
 
-.cprev{margin:12px 0 4px}
+.cprev{margin:12px 0 4px;min-height:60px}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:8px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}
+}
 </style>
 </head>
 <body>
@@ -208,12 +213,12 @@ canvas#cv{width:100%;border-radius:16px;border:1px solid var(--line);display:blo
     <div class="sub" id="appSub">先生命 · 再關係 · 後事工</div>
     <div class="grp" id="topGrp"></div>
   </div>
-  <main id="view"></main>
+  <main id="view" role="main"></main>
 </div>
 
-<nav class="nav" id="nav"></nav>
+<nav class="nav" id="nav" role="navigation" aria-label="主要導覽"></nav>
 
-<div class="sheet" id="sheet"><div><div class="grab"></div><div class="sh-h"><b id="shT"></b><button onclick="closeSheet()">×</button></div><div id="shB"></div></div></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shT"><div><div class="grab"></div><div class="sh-h"><b id="shT"></b><button onclick="closeSheet()">×</button></div><div id="shB"></div></div></div>
 
 <div id="stage">
   <button class="x" onclick="stopStage()">×</button>
@@ -223,7 +228,7 @@ canvas#cv{width:100%;border-radius:16px;border:1px solid var(--line);display:blo
   <div class="tip" id="stageTip"></div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <audio id="player" playsinline></audio>
 <script>
 /* ============ 經文卡片庫（和合本）｜每場景 10 張 ============ */
@@ -1472,6 +1477,10 @@ var EN_RULES=[
  ["尚無關懷紀錄","No care recorded yet"],
  ["目前都跟上了","You are all caught up"],
  ["每一位都在 30 天內關懷過，願主記念您的擺上。","Everyone has been cared for within 30 days. May the Lord remember your labour of love."],
+ ["這個月的腳蹤","Where your feet went this month"],
+ ["卡片是橋，不是終點。願我們寄出去的，最後都變成走過去的。","A card is a bridge, not a destination. May what we send out one day become a visit we make in person."],
+ [/面對面 (\d+) 次/g,"$1 in person"],
+ [/卡片與訊息 (\d+) 次/g,"$1 cards and messages"],
  ["關懷的次序","The order of caring"],
  ["先建立與神的關係，再建立與自己的關係，再建立與人的關係，再建立與事的關係。","First build your relationship with God, then with yourself, then with people, and only then with tasks."],
  ["關懷不是去解決人的問題，是陪伴人回到耶穌面前。","Caring is not solving people's problems; it is walking with them back to Jesus."],
@@ -1557,7 +1566,7 @@ var EN_RULES=[
  ["已複製，可貼到 LINE 或空白卡片","Copied — paste into LINE or a blank card"],
 
  /* 圖卡 */
- ["直式（推薦）","Portrait (recommended)"],["方形","Square"],["橫式","Landscape"],
+ ["直式 9:16","Portrait 9:16"],["直式 4:5","Portrait 4:5"],["方形","Square"],["橫式","Landscape"],
  ["圖卡模板","Card design"],
  ["純白簡潔","Pure white"],
  ["素樸信箋","Plain letter"],["深夜星光","Starlit night"],["晨曦盼望","Morning hope"],
@@ -1637,6 +1646,8 @@ var EN_RULES=[
  ["請先選一張卡片","Please choose a card first"],
  ["影片做好了！可以分享到 LINE","Your video is ready — share it to LINE"],
  ["錄好了！可以播放或分享","Recorded — you can play it or share it"],
+ ["錄製被中斷，已自動保存到「已完成的作品」","Recording was interrupted — what you had was saved to Finished pieces."],
+ ["經文卡片預覽","Preview of the scripture card"],
  ["停止並完成","Stop and finish"],["錄影中…","Recording video…"],["錄音中…","Recording…"],
  ["刪除這個作品？","Delete this recording?"],
  ["已下載，請從檔案或相簿分享","Downloaded — share it from Files or Photos"],
@@ -1668,6 +1679,20 @@ var EN_RULES=[
  ["選擇備份檔案","Choose a backup file"],
  ["尚未選擇檔案","No file chosen yet"],
  ["還原備份","Restore a backup"],["備份已下載","Backup downloaded"],
+ ["完整備份（含錄音影片）","Full backup (includes recordings)"],
+ ["把名冊、關懷紀錄與所有錄音影片打包成一個檔案。換手機時全部都能還原，建議每月一次。作品多時檔案會比較大，請耐心等候。","Packs your directory, care records and all recordings into one file. Everything can be restored on a new phone — do this monthly. With many recordings the file is large, so please be patient."],
+ ["只備份名冊與紀錄","Back up directory and records only"],
+ ["檔案小、速度快，但不包含錄音影片。","Small and fast, but it does not include recordings."],
+ ["上次備份：","Last backup: "],
+ ["還沒有備份過。強烈建議現在就做一次。","You have never backed up. Please do it now."],
+ ["已超過 45 天沒有備份，建議到「設定」做一次完整備份","It has been over 45 days since your last backup. Please make a full backup under Settings."],
+ ["開啟時，您填寫的「情況或需要」會傳送到 AI 服務以產生卡片。姓名會自動換成代號，不會送出。名冊、關懷紀錄與錄音影片永遠不會傳出這支手機。","When switched on, the situation you describe is sent to an AI service to write the card. The name is replaced with a symbol and is never sent. Your directory, care records and recordings never leave this phone."],
+ ["關閉後，仍可使用全部 250 張現成範本卡片。","With it switched off, all 250 ready-made cards still work."],
+ ["開啟","On"],["關閉","Off"],
+ ["查看錯誤紀錄","View error log"],["錯誤紀錄","Error log"],
+ ["這裡記錄 App 最近遇到的問題。回報狀況時，請按「複製」貼給開發者。","This records recent problems. When reporting an issue, tap Copy and paste it to the developer."],
+ ["目前沒有任何錯誤紀錄，一切正常。","No errors recorded — everything is running normally."],
+ ["清除紀錄","Clear log"],["已清除","Cleared"],["複製","Copy"],["已複製","Copied"],
  ["將覆蓋目前的資料，確定還原？","This will overwrite your current data. Restore anyway?"],
  ["已還原","Restored"],["檔案格式不正確","That file format is not valid"],
  ["還沒有填寫生日或紀念日","No birthdays or anniversaries have been entered yet"],
@@ -1683,6 +1708,7 @@ var EN_RULES=[
 
  /* AI小智 */
  ["AI小智 · 為您量身寫卡片","AI Sage · A card written for this person"],
+ ["AI小智","AI Sage"],
  ["AI小智 · 屬靈同伴","AI Sage · spiritual companion"],
  ["告訴AI小智三件事，它會為這個人寫出合適的經文與問候。寫好後可直接做成圖卡，或複製貼上。","Tell AI Sage three things and it will write a fitting verse and greeting for this person. You can turn it into an image card or copy it."],
  ["收卡人稱呼","Who is it for?"],
@@ -1691,6 +1717,14 @@ var EN_RULES=[
  ["例：最近工作壓力大，孩子考試也讓他很煩心，身體有點累。","e.g. work has been stressful, the children's exams are weighing on them, and they are tired."],
  ["寫得越具體，AI小智寫得越貼近。可以留空，AI小智會按場景發揮。","The more detail you give, the closer AI Sage can write. You may leave it blank and AI Sage will work from the occasion."],
  ["AI小智思想中…","AI Sage is thinking…"],
+ ["🔒 這段描述會傳送到 AI 服務以產生卡片。姓名會自動換成代號，不會送出；但請避免填寫病名、財務金額等敏感細節。不想使用時，可到「設定 → AI小智」關閉。","🔒 This description is sent to an AI service to write the card. The name is replaced with a symbol and never leaves this phone; even so, please avoid naming illnesses, amounts of money or other sensitive details. You can switch this off under Settings → AI Sage."],
+ ["AI小智目前是關閉的，可到「設定 → AI小智」開啟","AI Sage is currently switched off. You can turn it on under Settings → AI Sage."],
+ ["儲存空間已滿，這筆資料沒有存進去！請立刻到「設定 → 備份全部資料」把資料存下來，再刪除一些錄音作品騰出空間。","Storage is full and this entry was NOT saved. Please back up your data now under Settings, then delete some recordings to free up space."],
+ ["這份備份包含","This backup contains"],["個作品，會一併還原。","recordings, which will also be restored."],
+ ["目前已使用","Currently using"],
+ ["正在打包，請稍候…","Packing your backup, please wait…"],
+ ["完整備份已下載","Full backup downloaded"],
+ ["備份已下載（目前沒有作品）","Backup downloaded (no recordings yet)"],
  ["✨ 請AI小智寫一張","✨ Ask AI Sage to write one"],
  ["請AI小智寫一張","Ask AI Sage to write one"],
  ["請至少選一個場景，或描述情況","Please choose an occasion or describe the situation"],
@@ -1774,6 +1808,31 @@ function localizeEl(root){
     }
   }catch(e){}
 }
+/* 無障礙：每次重繪後統一補上，比在 74 個樣板逐一手寫更不容易漏 */
+function a11y(root){
+  try{
+    const r=root||document;
+    r.querySelectorAll("button:not([type])").forEach(b=>b.setAttribute("type","button"));
+    r.querySelectorAll("button,a.btn,label.btn").forEach(b=>{
+      if(b.getAttribute("aria-label"))return;
+      const t=(b.textContent||"").trim().replace(/\s+/g," ");
+      if(t)b.setAttribute("aria-label",t);
+      if(b.classList.contains("chip")||b.classList.contains("tpl"))
+        b.setAttribute("aria-pressed",b.classList.contains("on")?"true":"false");
+    });
+    r.querySelectorAll("input,select,textarea").forEach(el=>{
+      if(el.getAttribute("aria-label"))return;
+      const ph=el.getAttribute("placeholder");
+      let lab="";
+      let pv=el.previousElementSibling;
+      while(pv&&!lab){if(pv.classList&&pv.classList.contains("f"))lab=pv.textContent.trim();pv=pv.previousElementSibling;}
+      if(lab||ph)el.setAttribute("aria-label",lab||ph);
+    });
+    r.querySelectorAll("canvas").forEach(c=>{
+      if(!c.getAttribute("role")){c.setAttribute("role","img");c.setAttribute("aria-label",LT("經文卡片預覽"));}
+    });
+  }catch(e){logErr("a11y",e);}
+}
 function localizeAll(){
   localizeEl(document.getElementById("view"));
   localizeEl(document.getElementById("nav"));
@@ -1800,10 +1859,49 @@ function BL(){return isEN()?EN_BLESS:BLESS;}
 
 /* ================= 狀態 ================= */
 const KEY="care321.v1";
-const DEF={set:{group:"國度321空中團契",signer:"",fs:1,dark:0,quota:5,tip:1,lang:"zh-Hant",cardFs:1},people:[],logs:[]};
+const SCHEMA=2;   /* 資料結構版本：日後改結構時用來安全轉換舊資料 */
+const DEF={__v:SCHEMA,set:{group:"國度321空中團契",signer:"",fs:1,dark:0,quota:5,tip:1,lang:"zh-Hant",cardFs:1,ai:1,lastBak:0},people:[],logs:[]};
 let S=load();
-function load(){try{const o=JSON.parse(localStorage.getItem(KEY));if(o&&o.set)return Object.assign({},DEF,o,{set:Object.assign({},DEF.set,o.set)});}catch(e){}return JSON.parse(JSON.stringify(DEF));}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+/* 舊資料遷移：只補、不刪，永遠不讓使用者的資料因為改版而消失 */
+function migrate(o){
+  const v=+(o.__v)||1;
+  if(v<2){
+    o.people=(o.people||[]).map(p=>Object.assign({fam:[],tags:[]},p));
+    o.logs=(o.logs||[]).filter(l=>l&&l.pid);
+  }
+  o.__v=SCHEMA;return o;
+}
+function load(){
+  try{
+    const o=JSON.parse(localStorage.getItem(KEY));
+    if(o&&o.set)return migrate(Object.assign({},DEF,o,{set:Object.assign({},DEF.set,o.set)}));
+  }catch(e){logErr("load",e);}
+  return JSON.parse(JSON.stringify(DEF));
+}
+/* 存檔失敗過去是靜默的——牧養資料不能默默消失，一定要讓使用者知道 */
+let __saveWarned=false;
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(S));__saveWarned=false;return true;}
+  catch(e){
+    logErr("save",e);
+    if(!__saveWarned){
+      __saveWarned=true;
+      setTimeout(()=>alert(LT("儲存空間已滿，這筆資料沒有存進去！請立刻到「設定 → 備份全部資料」把資料存下來，再刪除一些錄音作品騰出空間。")),50);
+    }
+    return false;
+  }
+}
+/* 錯誤紀錄：長輩說「怪怪的」時，這裡有依據 */
+const ELOG="care321.err";
+function logErr(where,e){
+  try{
+    const a=JSON.parse(localStorage.getItem(ELOG)||"[]");
+    a.unshift({t:new Date().toISOString(),w:where,m:String((e&&e.message)||e).slice(0,200)});
+    localStorage.setItem(ELOG,JSON.stringify(a.slice(0,20)));
+  }catch(_){}
+}
+window.addEventListener("error",e=>logErr("window",e.error||e.message));
+window.addEventListener("unhandledrejection",e=>logErr("promise",e.reason));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const $=s=>document.querySelector(s);
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -1848,7 +1946,7 @@ function cardText(c,p){
 /* ================= Toast / Sheet ================= */
 let tT;
 function toast(m){const t=$("#toast");t.textContent=LT(m);t.classList.add("on");clearTimeout(tT);tT=setTimeout(()=>t.classList.remove("on"),2200);}
-function sheet(title,html){$("#shT").textContent=LT(title);$("#shB").innerHTML=html;localizeEl($("#shB"));$("#sheet").classList.add("on");$("#sheet").querySelector("div").scrollTop=0;}
+function sheet(title,html){$("#shT").textContent=LT(title);$("#shB").innerHTML=html;localizeEl($("#shB"));a11y($("#shB"));$("#sheet").classList.add("on");$("#sheet").querySelector("div").scrollTop=0;}
 function closeSheet(){$("#sheet").classList.remove("on");}
 $("#sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet();});
 
@@ -1872,7 +1970,7 @@ function render(){
   document.body.classList.toggle("dark",!!S.set.dark);
   $("#topGrp").textContent=[S.set.group,S.set.signer].filter(Boolean).join(" ｜ ");
   ({today:vToday,flock:vFlock,card:vCard,rec:vRec,set:vSet})[tab]();
-  localizeAll();
+  localizeAll();a11y();
 }
 function avatar(n){return (n||"？").slice(-2);}
 function prow(p,meta,badge){
@@ -1899,6 +1997,11 @@ function vToday(){
   const need=S.people.map(p=>({p,g:gapDays(p.id)})).sort((a,b)=>b.g-a.g);
   const week=need.filter(x=>x.g>=30).slice(0,S.set.quota||5);
   const red=need.filter(x=>x.g>=90).length;
+  /* 本月的關懷型態：面對面 vs 卡片訊息 */
+  const ym=iso(t).slice(0,7);
+  const mlogs=S.logs.filter(l=>(l.date||"").slice(0,7)===ym);
+  const f2f=mlogs.filter(l=>/面對面|探訪|聚會相見|In-person|gathering/.test(l.way||"")).length;
+  const msg=mlogs.length-f2f;
 
   $("#view").innerHTML=`
   <div class="hero">
@@ -1927,6 +2030,15 @@ function vToday(){
      :`<div class="empty"><b>目前都跟上了</b>每一位都在 30 天內關懷過，願主記念您的擺上。</div>`}
 
     <div class="card" style="background:var(--mist);border:0">
+      <div style="font-family:var(--serif);font-size:calc(18px*var(--fs));margin-bottom:6px">這個月的腳蹤</div>
+      <div class="row tight" style="margin-bottom:8px">
+        <span class="pill ${f2f>=4?"green":f2f>=1?"amber":"red"}">面對面 ${f2f} 次</span>
+        <span class="pill gold">卡片與訊息 ${msg} 次</span>
+      </div>
+      <div class="muted" style="line-height:1.8">卡片是橋，不是終點。願我們寄出去的，最後都變成走過去的。</div>
+    </div>
+
+    <div class="card" style="background:var(--mist);border:0">
       <div style="font-family:var(--serif);font-size:calc(18px*var(--fs));margin-bottom:6px">關懷的次序</div>
       <div class="muted" style="line-height:1.8">先建立與神的關係，再建立與自己的關係，再建立與人的關係，再建立與事的關係。<br>關懷不是去解決人的問題，是陪伴人回到耶穌面前。</div>
     </div>
@@ -1935,26 +2047,50 @@ function vToday(){
 
 /* ---------- 羊群 ---------- */
 let flockQ="",flockF="all";
-function vFlock(){
+/* 搜尋時只重畫名單，不動輸入框——否則注音打到一半會被吃掉 */
+let __composing=false;
+function flockRows(){
   const q=flockQ.trim();
   let list=S.people.filter(p=>!q||[p.name,p.grp,p.note,p.pray,p.spouse].join(" ").includes(q));
   if(flockF!=="all")list=list.filter(p=>(p.tags||[]).includes(flockF));
   list.sort((a,b)=>gapDays(b.id)-gapDays(a.id));
-  const F=[["all","全部"],["2","2 屬靈同伴"],["3","3 屬靈父母兒女"],["5","5 五重職份戰友"]];
-  $("#view").innerHTML=`
-  <div class="wrap" style="padding-bottom:0">
-    <input id="q" placeholder="搜尋姓名、小組、備註…" value="${esc(flockQ)}" oninput="flockQ=this.value;vFlock();refocus()">
-  </div>
-  <div class="chips">${F.map(([k,n])=>`<button class="chip ${flockF===k?"on":""}" onclick="flockF='${k}';vFlock()">${n}</button>`).join("")}</div>
-  <div class="wrap" style="padding-top:0">
-    <button class="btn wide" onclick="editPerson()">＋ 新增一位弟兄姊妹</button>
+  return list;
+}
+function drawFlockList(){
+  const box=document.getElementById("flockList");
+  if(!box)return;
+  const list=flockRows();
+  box.innerHTML=`
     <div class="sec-t">名冊（${list.length}）</div>
     ${list.length?list.map(p=>{
       const g=gapDays(p.id);
       const tg=(p.tags||[]).map(t=>`<span class="tag">${t}</span>`).join("");
       return prow(p,`${tg}${p.grp?esc(p.grp)+"　":""}${g>=999?"尚無關懷紀錄":`上次關懷 ${g} 天前`}`);
-    }).join(""):`<div class="empty"><b>還沒有建立名冊</b>先加入三五位最靠近您的人，從 2 開始。</div>`}
+    }).join(""):`<div class="empty"><b>還沒有建立名冊</b>先加入三五位最靠近您的人，從 2 開始。</div>`}`;
+  localizeEl(box);a11y(box);
+}
+function onFlockQ(v){flockQ=v;if(__composing)return;drawFlockList();}
+function setFlockF(k){
+  flockF=k;
+  const cs=document.querySelectorAll("#flockChips .chip");
+  for(let i=0;i<cs.length;i++)cs[i].classList.toggle("on",cs[i].dataset.k===k);
+  drawFlockList();
+}
+function vFlock(){
+  const F=[["all","全部"],["2","2 屬靈同伴"],["3","3 屬靈父母兒女"],["5","5 五重職份戰友"]];
+  $("#view").innerHTML=`
+  <div class="wrap" style="padding-bottom:0">
+    <input id="q" placeholder="搜尋姓名、小組、備註…" value="${esc(flockQ)}"
+      oninput="onFlockQ(this.value)"
+      oncompositionstart="__composing=true"
+      oncompositionend="__composing=false;onFlockQ(this.value)">
+  </div>
+  <div class="chips" id="flockChips">${F.map(([k,n])=>`<button class="chip ${flockF===k?"on":""}" data-k="${k}" onclick="setFlockF('${k}')">${n}</button>`).join("")}</div>
+  <div class="wrap" style="padding-top:0">
+    <button class="btn wide" onclick="editPerson()">＋ 新增一位弟兄姊妹</button>
+    <div id="flockList"></div>
   </div>`;
+  drawFlockList();
 }
 
 function refocus(){const e=$("#q");if(e){e.focus();const n=e.value.length;try{e.setSelectionRange(n,n);}catch(x){}}}
@@ -2107,9 +2243,9 @@ function vCardList(){
     <div class="hint" style="margin-top:8px">上面每一張都是做成圖卡後的實際樣子。版型、邊框、相片與字級都可在「做成圖卡」裡調整。</div>
     <div style="height:10px"></div>
   </div>`;
-  localizeAll();
-  /* 一張一張慢慢畫，畫面才不會卡住 */
-  sc.cards.forEach((c,i)=>setTimeout(()=>renderPreview("pv"+i,c,p),40*i));
+  localizeAll();a11y();
+  /* 只畫捲到看得見的那幾張，舊手機才不會卡 */
+  lazyPreview(sc.cards,p);
 }
 let override={};
 function ck(sid,i){return sid+"#"+i;}
@@ -2141,9 +2277,24 @@ function copyTxt(sid,i){
 }
 
 /* ================= 圖卡繪製 ================= */
-const SIZES={p:[1080,1920,"直式（推薦）"],s:[1080,1080,"方形"],w:[1920,1080,"橫式"]};
+const SIZES={p:[1080,1920,"直式 9:16"],t:[1080,1350,"直式 4:5"],s:[1080,1080,"方形"],w:[1920,1080,"橫式"]};
 let curSize="p";
 /* 卡片即時預覽：挑卡、改字、換版型時都能先看到成品長什麼樣 */
+let __io=null;
+function lazyPreview(cards,p){
+  try{if(__io)__io.disconnect();}catch(e){}
+  const boxes=cards.map((c,i)=>({el:document.getElementById("pv"+i),c})).filter(x=>x.el);
+  if(!window.IntersectionObserver){boxes.forEach((x,i)=>setTimeout(()=>renderPreview("pv"+i,x.c,p),40*i));return;}
+  __io=new IntersectionObserver(es=>{
+    es.forEach(e=>{
+      if(!e.isIntersecting)return;
+      const i=+e.target.id.slice(2);
+      renderPreview("pv"+i,cards[i],p);
+      __io.unobserve(e.target);
+    });
+  },{rootMargin:"300px 0px"});
+  boxes.forEach(x=>__io.observe(x.el));
+}
 function renderPreview(boxId,c,p){
   const box=document.getElementById(boxId);
   if(!box||!c)return;
@@ -2153,8 +2304,8 @@ function renderPreview(boxId,c,p){
     const cv=document.createElement("canvas");
     drawCard(cv,c,p,Math.round(W0*sc),Math.round(H0*sc));
     cv.style.cssText="width:100%;max-width:250px;display:block;margin:0 auto;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.13)";
-    box.innerHTML="";box.appendChild(cv);
-  }catch(e){}
+    box.innerHTML="";box.appendChild(cv);a11y(box);
+  }catch(e){logErr("preview",e);}
 }
 function wrap(ctx,text,maxW){
   const out=[];
@@ -2490,30 +2641,32 @@ function bgmPickerHTML(){
     </div>`;
 }
 const CARD_FS=[[0.9,"小一點"],[1,"標準"],[1.2,"大"],[1.45,"特大"],[1.7,"超大"]];
-function cardFsHTML(reCall){
+function cardFsHTML(){
+  /* 注意：不要把 reCall 當字串塞進 onclick——它本身含單引號，會把屬性切斷。
+     一律走全域的 __reCall（reRender），這是先前字級按不動的原因。 */
   const cur=+(S.set.cardFs)||1;
   return `<div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin:14px 0 8px">內文字級</div>
    <div class="row tight">
-     ${CARD_FS.map(([v,nm])=>`<button class="chip ${Math.abs(cur-v)<0.01?"on":""}" onclick="setCardFs(${v},'${reCall}')">${nm}</button>`).join("")}
+     ${CARD_FS.map(([v,nm])=>`<button class="chip ${Math.abs(cur-v)<0.01?"on":""}" onclick="setCardFs(${v})">${nm}</button>`).join("")}
    </div>
    <div class="hint">只放大卡片與影片上的問候內文（AI小智寫的那幾句），經文與署名維持不變。</div>`;
 }
-function setCardFs(v,reCall){S.set.cardFs=v;save();if(reCall){try{(0,eval)(reCall);}catch(e){}}}
+function setCardFs(v){S.set.cardFs=v;save();reRender();}
 function openImgSheet(c,p,reCall,fname){
   __xzCard=c;__reCall=reCall;
   sheet("做成圖卡",`
    <div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin-bottom:8px">選一款版型</div>
    <div class="tplbar">
-     ${TPL_ORDER.map(k=>`<button class="tpl ${curTpl===k?"on":""}" onclick="curTpl='${k}';${reCall}"><span class="sw" style="background:${tplSwatch(k)}"></span><span>${TPL[k].n}</span></button>`).join("")}
+     ${TPL_ORDER.map(k=>`<button class="tpl ${curTpl===k?"on":""}" onclick="curTpl='${k}';reRender()"><span class="sw" style="background:${tplSwatch(k)}"></span><span>${TPL[k].n}</span></button>`).join("")}
    </div>
    <div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin:14px 0 8px">選一款邊框</div>
    <div class="tplbar">
-     ${BORDERS.map(bd=>`<button class="tpl ${curBorder===bd.id?"on":""}" onclick="curBorder='${bd.id}';${reCall}"><span class="sw brd-${bd.id}"></span><span>${bd.n}</span></button>`).join("")}
+     ${BORDERS.map(bd=>`<button class="tpl ${curBorder===bd.id?"on":""}" onclick="curBorder='${bd.id}';reRender()"><span class="sw brd-${bd.id}"></span><span>${bd.n}</span></button>`).join("")}
    </div>
    <div class="row tight" style="margin:14px 0 6px">
-     ${Object.entries(SIZES).map(([k,v])=>`<button class="chip ${curSize===k?"on":""}" onclick="curSize='${k}';${reCall}">${v[2]}</button>`).join("")}
+     ${Object.entries(SIZES).map(([k,v])=>`<button class="chip ${curSize===k?"on":""}" onclick="curSize='${k}';reRender()">${v[2]}</button>`).join("")}
    </div>
-   ${cardFsHTML(reCall)}
+   ${cardFsHTML()}
    <div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin:14px 0 8px">加一張相片（選用）</div>
    ${photoPickerHTML()}
    <div id="imgBox" class="muted" style="text-align:center;padding:40px 0">圖卡產生中…</div>
@@ -2644,7 +2797,7 @@ async function vRec(){
          ${BORDERS.map(bd=>`<button class="tpl ${curBorder===bd.id?"on":""}" onclick="curBorder='${bd.id}';vRec()">
             <span class="sw brd-${bd.id}"></span><span>${bd.n}</span></button>`).join("")}
        </div>
-       ${cardFsHTML("vRec()")}
+       ${cardFsHTML()}
        <div style="font-size:calc(15px*var(--fs));color:var(--ink3);font-weight:600;margin:12px 0 8px">相片（選用）</div>
        ${photoPickerHTML()}
        ${(photoImg&&photoMode==="sticker"&&recSelfie)?`<div class="hint" style="color:var(--amber)">自拍與相片貼紙都在右下角，錄影時會以自拍為主；相片建議改「作背景」。</div>`:""}
@@ -2700,7 +2853,7 @@ async function vRec(){
       </div>`;}).join(""):`<div class="empty">還沒有作品。第一次錄可能會不習慣，錄壞了就重錄，弟兄姊妹聽的是您的心意。</div>`}
     <div style="height:10px"></div>
   </div>`;
-  localizeAll();
+  localizeAll();a11y();
   if(recSelfie)attachSelfie();
   if(pending)renderPreview("recPrev",pendCard(),S.people.find(x=>x.id===pending.pid));
 }
@@ -2775,7 +2928,7 @@ async function musicRec(){
     audioStream=dst.stream;
   }catch(e){toast("無法讀取這首音樂，請換一首");return;}
 
-  const W=1080,H=1920;
+  const[W,H]=SIZES[curSize]||SIZES.p;
   const base=document.createElement("canvas");drawCard(base,c,p,W,H);
   const cv=document.createElement("canvas");cv.width=W;cv.height=H;
   const cx=cv.getContext("2d");const t0=performance.now();
@@ -2864,7 +3017,7 @@ async function toggleRec(){
   let stream=audioStream, kind="audio", mime=audMime();
   if(canVideo()){
     try{
-      const W=1080,H=1920;
+      const[W,H]=SIZES[curSize]||SIZES.p;
       selfieLayout=!!useSelfie;suppressSticker=!!useSelfie;
       const base=document.createElement("canvas");drawCard(base,c,p,W,H);
       selfieLayout=false;suppressSticker=false;
@@ -2981,7 +3134,29 @@ $("#stage").addEventListener("click",e=>{if(e.target.id==="stage"){
   const v=$("#stageVid");if(v.style.display==="block")v.play().catch(()=>{});else $("#player").play().catch(()=>{});}});
 
 /* ================= 設定 ================= */
+function showErrLog(){
+  let a=[];try{a=JSON.parse(localStorage.getItem(ELOG)||"[]");}catch(e){}
+  const txt=a.length?a.map(x=>x.t.slice(0,19).replace("T"," ")+"  ["+x.w+"] "+x.m).join("\n"):LT("目前沒有任何錯誤紀錄，一切正常。");
+  sheet("錯誤紀錄",`
+   <div class="hint">這裡記錄 App 最近遇到的問題。回報狀況時，請按「複製」貼給開發者。</div>
+   <textarea rows="12" readonly style="font-family:ui-monospace,monospace;font-size:calc(13px*var(--fs))">${esc(txt)}</textarea>
+   <div class="row" style="margin-top:10px">
+     <button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText(${JSON.stringify(txt)}).then(()=>toast('已複製'))">複製</button>
+     <button class="btn ghost" onclick="localStorage.removeItem(ELOG);closeSheet();toast('已清除')">清除紀錄</button>
+   </div>`);
+}
 function vSet(){
+  setTimeout(async()=>{
+    const u=document.getElementById("usageBox");
+    if(u){const t=await usageHTML();if(t)u.textContent=t;}
+    const b=document.getElementById("bakInfo");
+    if(b){
+      const last=+(S.set.lastBak)||0;
+      const d=last?Math.round((Date.now()-last)/864e5):-1;
+      b.textContent=last?(LT("上次備份：")+d+" "+LT("天前")):LT("還沒有備份過。強烈建議現在就做一次。");
+      b.style.color=(!last||d>=30)?"var(--red)":"";
+    }
+  },30);
   const fsOpt=[[1,"標準"],[1.15,"大"],[1.32,"特大"],[1.5,"超大"]];
   $("#view").innerHTML=`
   <div class="wrap">
@@ -3022,12 +3197,27 @@ function vSet(){
       <button class="btn wide ghost" onclick="expICS()">匯出生日／紀念日到行事曆</button>
       <div class="hint">產生 .ics 檔，打開後可一次加入 iPhone 行事曆，每年自動提醒。</div>
       <hr class="sep">
-      <button class="btn wide ghost" onclick="expJSON()">備份全部資料</button>
-      <div class="hint">存成一個檔案，換手機時可以還原。建議每月備份一次。</div>
+      <button class="btn wide" onclick="expFull()">完整備份（含錄音影片）</button>
+      <div class="hint">把名冊、關懷紀錄與所有錄音影片打包成一個檔案。換手機時全部都能還原，建議每月一次。作品多時檔案會比較大，請耐心等候。</div>
+      <hr class="sep">
+      <button class="btn wide ghost" onclick="expJSON()">只備份名冊與紀錄</button>
+      <div class="hint">檔案小、速度快，但不包含錄音影片。</div>
+      <div class="hint" id="bakInfo"></div>
       <label class="f">還原備份</label>
       <input id="impFile" type="file" accept=".json" style="display:none" onchange="pickBackup(this)">
       <button class="btn wide ghost" onclick="document.getElementById('impFile').click()">選擇備份檔案</button>
       <div class="hint" id="impName">尚未選擇檔案</div>
+      <div class="hint" id="usageBox"></div>
+    </div>
+
+    <div class="sec-t">AI小智</div>
+    <div class="card">
+      <div class="row tight">
+        <button class="chip ${S.set.ai!==0?"on":""}" onclick="S.set.ai=1;save();render()">開啟</button>
+        <button class="chip ${S.set.ai===0?"on":""}" onclick="S.set.ai=0;save();render()">關閉</button>
+      </div>
+      <div class="hint">開啟時，您填寫的「情況或需要」會傳送到 AI 服務以產生卡片。姓名會自動換成代號，不會送出。名冊、關懷紀錄與錄音影片永遠不會傳出這支手機。</div>
+      <div class="hint">關閉後，仍可使用全部 250 張現成範本卡片。</div>
     </div>
 
     <div class="sec-t">關於</div>
@@ -3041,25 +3231,88 @@ function vSet(){
       </div>
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
-      <div class="hint">版本 v3.0.0（三語版）</div>
+      <button class="btn wide ghost" style="margin-top:9px" onclick="showErrLog()">查看錯誤紀錄</button>
+      <div class="hint">版本 v3.1.1（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
 }
 function dl(name,txt,type){const b=new Blob([txt],{type});const u=URL.createObjectURL(b);
   const a=document.createElement("a");a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),4000);}
-function expJSON(){dl("321care-backup-"+iso(today())+".json",JSON.stringify(S),"application/json");toast("備份已下載");}
+function expJSON(){
+  S.set.lastBak=Date.now();save();
+  dl("321care-名冊備份-"+iso(today())+".json",JSON.stringify(S),"application/json");
+  toast("備份已下載");
+}
+/* 完整備份：連錄音影片一起打包，換手機才不會只剩文字 */
+const b64=blob=>new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.onerror=()=>r("");fr.readAsDataURL(blob);});
+async function expFull(){
+  toast("正在打包，請稍候…");
+  let recs=[];
+  try{
+    const a=db?await allRec():[];
+    for(const r of a){
+      const d=await b64(r.blob);
+      if(d)recs.push(Object.assign({},r,{blob:null,data:d}));
+    }
+  }catch(e){logErr("expFull",e);}
+  S.set.lastBak=Date.now();save();
+  const pack={__full:1,__v:SCHEMA,S,recs};
+  dl("321care-完整備份-"+iso(today())+".json",JSON.stringify(pack),"application/json");
+  toast(recs.length?"完整備份已下載":"備份已下載（目前沒有作品）");
+}
+function dataURLtoBlob(u){
+  const i=u.indexOf(",");const mime=(u.slice(5,i).split(";")[0])||"application/octet-stream";
+  const b=atob(u.slice(i+1)),a=new Uint8Array(b.length);
+  for(let k=0;k<b.length;k++)a[k]=b.charCodeAt(k);
+  return new Blob([a],{type:mime});
+}
+function validBackup(o){
+  if(!o||typeof o!=="object")return false;
+  const d=o.__full?o.S:o;
+  return !!(d&&Array.isArray(d.people)&&Array.isArray(d.logs)&&d.set&&typeof d.set==="object");
+}
 function pickBackup(inp){
   const f=inp.files&&inp.files[0];
   const el=document.getElementById("impName");
   if(el)el.textContent=f?f.name:LT("尚未選擇檔案");
   if(f)impJSON(inp);
 }
-function impJSON(inp){const f=inp.files[0];if(!f)return;const rd=new FileReader();
-  rd.onload=()=>{try{const o=JSON.parse(rd.result);if(!o.people)throw 0;
-    if(!confirm("將覆蓋目前的資料，確定還原？"))return;
-    S=Object.assign({},DEF,o,{set:Object.assign({},DEF.set,o.set||{})});save();render();toast("已還原");
-  }catch(e){toast("檔案格式不正確");}};rd.readAsText(f);}
+function impJSON(inp){
+  const f=inp.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=async()=>{
+    let o;
+    try{o=JSON.parse(rd.result);}catch(e){toast("檔案格式不正確");return;}
+    if(!validBackup(o)){toast("檔案格式不正確");return;}
+    const full=!!o.__full;
+    const cnt=full?(o.recs||[]).length:0;
+    if(!confirm(LT("將覆蓋目前的資料，確定還原？")+(full&&cnt?("\n"+LT("這份備份包含")+" "+cnt+" "+LT("個作品，會一併還原。")):"")))return;
+    const data=full?o.S:o;
+    S=migrate(Object.assign({},DEF,data,{set:Object.assign({},DEF.set,data.set||{})}));
+    save();
+    if(full&&cnt){
+      try{
+        for(const r of o.recs){
+          if(!r||!r.data)continue;
+          await putRec(Object.assign({},r,{data:undefined,blob:dataURLtoBlob(r.data)}));
+        }
+      }catch(e){logErr("impFull",e);}
+    }
+    render();toast("已還原");
+  };
+  rd.readAsText(f);
+}
+/* 空間用量：讓使用者看得見自己還剩多少 */
+async function usageHTML(){
+  try{
+    if(!navigator.storage||!navigator.storage.estimate)return "";
+    const e=await navigator.storage.estimate();
+    const mb=x=>(x/1048576).toFixed(1);
+    const pct=e.quota?Math.round(e.usage/e.quota*100):0;
+    return LT("目前已使用")+" "+mb(e.usage)+" MB / "+mb(e.quota)+" MB（"+pct+"%）";
+  }catch(e){return "";}
+}
 function expICS(){
   const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//321care//TW","CALSCALE:GREGORIAN"];
   const y=today().getFullYear();
@@ -3082,7 +3335,7 @@ function expICS(){
    每次改版：index.html 的 APP_VER、version.json、sw.js 的 CACHE 版號要一起跳。
    App 開啟時與每次切回前景時（最多每 5 分鐘一次）向伺服器問一次版本，
    有新版就在使用者不忙的時候自動換版；正在錄影或打字時只提示，不打斷。 */
-const APP_VER="3.0.0";
+const APP_VER="3.1.1";
 let __lastChk=0,__upd=false;
 function appBusy(){
   if(mr&&mr.state==="recording")return true;
@@ -3174,12 +3427,15 @@ function xzSystem(){
     "不要杜撰經文；若不確定經節，寧可選一節你完全有把握的相近經文。"
   ].join("\n");
 }
+/* 送出前把真實姓名換成代號，回來再填回去——AI 寫得一樣好，姓名不出門 */
+const NAME_TOKEN="◇";
 function xzPrompt(){
   const t=(xz.title||"").trim();
-  return `收卡人稱呼：${xz.name||"（未填，請用「親愛的弟兄姊妹」）"}${t}\n`
+  return `收卡人稱呼：${xz.name?NAME_TOKEN+t:"（未填，請用「親愛的弟兄姊妹」）"}\n`
     +`關懷場景：${xz.scene||"一般問安"}\n`
     +`對方的情況或需要：${xz.need||"（未特別說明，請按場景寫溫暖的問候）"}\n\n`
-    +`請依規定格式，為這個人寫一張關懷卡片的經文與問候。`;
+    +`請依規定格式，為這個人寫一張關懷卡片的經文與問候。`
+    +(xz.name?`\n注意：稱呼請原封不動使用「${NAME_TOKEN}${t}」這個符號，不要自行改寫或替換。`:"");
 }
 function xzParse(text){
   const t=String(text||"");
@@ -3222,6 +3478,9 @@ function xzSheet(){
    </select>
    <label class="f">對方目前的情況或需要</label>
    <textarea id="xz_need" rows="4" placeholder="例：最近工作壓力大，孩子考試也讓他很煩心，身體有點累。" oninput="xz.need=this.value">${esc(xz.need)}</textarea>
+   <div class="hint" style="border-left:3px solid var(--gold);padding-left:10px;margin-top:10px">
+     🔒 這段描述會傳送到 AI 服務以產生卡片。姓名會自動換成代號，不會送出；但請避免填寫病名、財務金額等敏感細節。不想使用時，可到「設定 → AI小智」關閉。
+   </div>
    <div class="hint">寫得越具體，AI小智寫得越貼近。可以留空，AI小智會按場景發揮。</div>
    <hr class="sep">
    <button class="btn wide gold" id="xz_go" onclick="xzGenerate()">${xz.busy?"AI小智思想中…":"✨ 請AI小智寫一張"}</button>
@@ -3235,6 +3494,7 @@ async function xzGenerate(){
   xz.scene=($("#xz_scene")||{}).value||xz.scene;
   xz.need=($("#xz_need")||{}).value||xz.need;
   if(!xz.scene&&!xz.need){toast("請至少選一個場景，或描述情況");return;}
+  if(S.set.ai===0){toast("AI小智目前是關閉的，可到「設定 → AI小智」開啟");return;}
   xz.busy=true;xz.err="";xz.result=null;
   const b=$("#xz_go");if(b){b.textContent="AI小智思想中…";b.disabled=true;}
   const out=$("#xz_out");if(out)out.innerHTML=`<div class="card" style="margin-top:14px;text-align:center"><div class="muted">✨ AI小智正在為 ${esc(xz.name||"這位弟兄姊妹")} 尋找合適的話…</div></div>`;
@@ -3253,6 +3513,11 @@ async function xzGenerate(){
     const text=(data.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("\n").trim();
     if(!text)throw new Error("empty");
     xz.result=xzParse(text);
+    /* 代號換回真名，只在這支手機裡完成 */
+    if(xz.name&&xz.result){
+      const real=xz.name+(xz.title||"");
+      ["v","r","w"].forEach(k=>{if(xz.result[k])xz.result[k]=xz.result[k].split(NAME_TOKEN+(xz.title||"")).join(real).split(NAME_TOKEN).join(xz.name);});
+    }
   }catch(e){
     xz.err=(e&&e.name==="AbortError")?"AI小智等候得有點久，請稍後再試 🙏"
       :(e&&e.message==="offline")?"目前沒有網路，AI小智暫時無法連線 🙏 可先用現成範本。"
@@ -3335,8 +3600,21 @@ function xzMakeImg(){
       });
     }).catch(()=>{});
   }
+  /* 錄影中被電話或別的 App 打斷時，先把已錄到的存起來，不要整段丟掉 */
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden&&mr&&mr.state==="recording"){
+      try{mr.stop();}catch(e){logErr("bgstop",e);}
+      setTimeout(()=>toast("錄製被中斷，已自動保存到「已完成的作品」"),600);
+    }
+  });
   /* 開啟時查一次，之後每次切回前景再查（最多每 5 分鐘一次） */
   setTimeout(checkUpdate,1500);
+  /* 超過 45 天沒備份就提醒一次，牧養資料禁不起一次意外 */
+  setTimeout(()=>{
+    const last=+(S.set.lastBak)||0;
+    if(S.people.length&&(!last||Date.now()-last>45*864e5))
+      toast("已超過 45 天沒有備份，建議到「設定」做一次完整備份");
+  },4000);
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkUpdate();});
   window.addEventListener("focus",()=>checkUpdate());
 })();
