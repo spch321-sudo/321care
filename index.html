@@ -1588,7 +1588,9 @@ var EN_RULES=[
  ["內文字級","Message text size"],
  ["只放大卡片與影片上的問候內文（AI小智寫的那幾句），經文與署名維持不變。","This only resizes the greeting text on cards and videos; the verse and signature stay as they are."],
  ["小一點","Smaller"],
- ["相片大小","Photo size"],["相片位置","Photo position"],
+ ["相片大小","Photo size"],["相片位置","Photo position"],["相片形狀","Photo shape"],
+ ["直式","Portrait"],["橫式 16:9","Landscape 16:9"],["方形","Square"],
+ ["超大","Extra large"],["整排","Full width"],
  ["小張","Small"],["中等","Medium"],["大張","Large"],["滿版","Extra large"],
  ["署名會自動排到相片的另一邊，不會被蓋住。","The signature moves to the opposite side of the photo so it is never covered."],
  ["可把相片當卡片背景，或像貼紙貼在卡片上，大小與位置都能調。","Use the photo as the card background, or place it like a sticker — you can set its size and position."],
@@ -2358,13 +2360,23 @@ const BORDERS=[
 let curBorder="classic";
 let photoImg=null,photoMode="bg",suppressSticker=false,selfieLayout=false,__reCall="";
 /* 相片貼紙：大小與位置（四個角落＋正下方） */
-let stkSize=0.30, stkPos="br";
+let stkSize=0.30, stkPos="br", stkShape="p";
 /* 音樂卡片長度：不必等整首播完 */
 let mcLen=30;
 const MC_LENS=[[15,"15 秒"],[30,"30 秒"],[60,"1 分鐘"],[0,"整首"]];
 function setMcLen(v){mcLen=v;vRec();}
-const STK_SIZES=[[0.22,"小張"],[0.30,"中等"],[0.38,"大張"],[0.46,"滿版"]];
+const STK_SIZES=[[0.22,"小張"],[0.30,"中等"],[0.38,"大張"],[0.46,"滿版"],[0.62,"超大"],[0.84,"整排"]];
 const STK_POS=[["bl","左下"],["bc","正下"],["br","右下"],["tl","左上"],["tr","右上"]];
+/* 相片形狀：直式拍立得、橫式 16:9、方形 */
+const STK_SHAPES=[["p","直式"],["w","橫式 16:9"],["s","方形"]];
+/* 貼紙外框高度相對寬度的比例（含拍立得白邊） */
+function stkRatio(){return stkShape==="w"?0.72:(stkShape==="s"?1.06:1.12);}
+function setStkShape(v){
+  stkShape=v;
+  /* 橫式若還用小尺寸會看不清楚，自動放大一級 */
+  if(v==="w"&&stkSize<0.38)stkSize=0.46;
+  reRender();
+}
 function setStkSize(v){stkSize=v;reRender();}
 function setStkPos(v){stkPos=v;reRender();}
 let bgmBlob=null,bgmName="",bgmVol=0.22;
@@ -2490,7 +2502,7 @@ function drawCard(cv,c,p,W,H){
   const hasStickerLayout=photoImg&&photoMode==="sticker"&&!suppressSticker;
   /* 祝福語與署名會因為貼紙或自拍而往上移，底部要預留同樣的高度，內文才不會壓過去 */
   const stkBottom=stkPos!=="tl"&&stkPos!=="tr";
-  const liftRoom=(hasStickerLayout&&stkBottom)?Math.round(W*stkSize*1.12)+Math.round(30*F):0;
+  const liftRoom=(hasStickerLayout&&stkBottom)?Math.round(W*stkSize*stkRatio())+Math.round(30*F):0;
   const topRoom=pad+Math.round(96*F), botRoom=pad+Math.round(160*F)+liftRoom;
   const room=H-topRoom-botRoom;
 
@@ -2531,13 +2543,14 @@ function drawCard(cv,c,p,W,H){
   /* --- 祝福與署名（近底部；自拍或貼相片時上移讓開） --- */
   const hasSticker=photoImg&&photoMode==="sticker"&&!suppressSticker;
   const stkDown=hasSticker&&stkPos!=="tl"&&stkPos!=="tr";
-  const lift=(stkDown&&stkPos==="bc")?Math.round(W*stkSize*1.12)+Math.round(20*F):0;
+  const lift=(stkDown&&(stkPos==="bc"||(hasSticker&&stkSize>=0.55)))?Math.round(W*stkSize*stkRatio())+Math.round(20*F):0;
   /* 自拍圓框在右下角，祝福語與署名就靠左排，彼此讓開 */
   const selfR=Math.round(Math.min(W,H)*0.115), selfPad=Math.round(W*.078);
   /* 圓框或相片貼紙佔住一角時，祝福語與署名就排到另一邊，彼此讓開 */
   const stkW=Math.round(W*stkSize);
-  const sideR=(!!selfieLayout&&!hasSticker)||(stkDown&&stkPos==="br");
-  const sideL=stkDown&&stkPos==="bl";
+  const wideStk=hasSticker&&stkSize>=0.55;   /* 太寬就沒有側邊空間了 */
+  const sideR=(!!selfieLayout&&!hasSticker)||(stkDown&&stkPos==="br"&&!wideStk);
+  const sideL=stkDown&&stkPos==="bl"&&!wideStk;
   const sideMode=sideR||sideL;
   const rightEdge=sideR?(selfieLayout&&!hasSticker?W-selfPad-selfR*2:W-pad-stkW)-Math.round(24*F):W-pad;
   const leftStart=sideL?(pad+stkW+Math.round(24*F)):pad;
@@ -2560,16 +2573,17 @@ function drawCard(cv,c,p,W,H){
 
   /* --- 相片貼紙（右下角，拍立得風格） --- */
   if(hasSticker){
-    const sw=Math.round(W*stkSize), sh=Math.round(sw*1.12);
+    const sw=Math.round(W*stkSize), sh=Math.round(sw*stkRatio());
     const top=stkPos==="tl"||stkPos==="tr";
     const bx=(stkPos==="bl"||stkPos==="tl")?pad-Math.round(4*F)
             :(stkPos==="bc")?Math.round((W-sw)/2)
             :W-pad-sw+Math.round(4*F);
     const by=top?pad+Math.round(70*F):H-pad-sh+Math.round(4*F);
     ctx.save();
-    ctx.translate(bx+sw/2,by+sh/2);ctx.rotate(-3*Math.PI/180);
+    ctx.translate(bx+sw/2,by+sh/2);ctx.rotate((stkShape==="w"?-1.4:-3)*Math.PI/180);
     ctx.shadowColor="rgba(0,0,0,.30)";ctx.shadowBlur=Math.round(24*F);ctx.shadowOffsetY=Math.round(9*F);
-    const fr=Math.round(10*F), pb=Math.round(26*F);   // 白框、底部留白（拍立得）
+    /* 直式保留拍立得的下白邊；橫式與方形四邊等寬，比例才不會被切掉 */
+    const fr=Math.round(10*F), pb=(stkShape==="p")?Math.round(26*F):fr;
     rr(ctx,-sw/2,-sh/2,sw,sh,Math.round(10*F));ctx.fillStyle="#FDFBF6";ctx.fill();
     ctx.shadowColor="transparent";
     const iw2=sw-fr*2, ih2=sh-fr-pb;
@@ -2603,6 +2617,10 @@ function photoPickerHTML(){
       <button class="chip ${photoMode==="sticker"?"on":""}" onclick="setPhotoMode('sticker')">貼在卡片上</button>
     </div>
     ${photoMode==="sticker"?`
+    <div class="muted" style="font-size:calc(14px*var(--fs));margin:8px 0 6px">相片形狀</div>
+    <div class="row tight" style="margin-bottom:8px">
+      ${STK_SHAPES.map(([v,nm])=>`<button class="chip ${stkShape===v?"on":""}" onclick="setStkShape('${v}')">${nm}</button>`).join("")}
+    </div>
     <div class="muted" style="font-size:calc(14px*var(--fs));margin:8px 0 6px">相片大小</div>
     <div class="row tight" style="margin-bottom:8px">
       ${STK_SIZES.map(([v,nm])=>`<button class="chip ${Math.abs(stkSize-v)<0.01?"on":""}" onclick="setStkSize(${v})">${nm}</button>`).join("")}
@@ -3232,7 +3250,7 @@ function vSet(){
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
       <button class="btn wide ghost" style="margin-top:9px" onclick="showErrLog()">查看錯誤紀錄</button>
-      <div class="hint">版本 v3.1.1（三語版）</div>
+      <div class="hint">版本 v3.2.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
@@ -3335,7 +3353,7 @@ function expICS(){
    每次改版：index.html 的 APP_VER、version.json、sw.js 的 CACHE 版號要一起跳。
    App 開啟時與每次切回前景時（最多每 5 分鐘一次）向伺服器問一次版本，
    有新版就在使用者不忙的時候自動換版；正在錄影或打字時只提示，不打斷。 */
-const APP_VER="3.1.1";
+const APP_VER="3.2.0";
 let __lastChk=0,__upd=false;
 function appBusy(){
   if(mr&&mr.state==="recording")return true;
