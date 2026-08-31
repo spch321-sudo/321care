@@ -1433,6 +1433,312 @@ newborn:[
   }
 })();
 
+
+/* ================= 影片修復（fMP4 → 標準 MP4）=================
+   iOS Safari 的 MediaRecorder 產出的是「分段 MP4」，而且把影片長度寫成 0。
+   LINE、相簿與大多數 App 都讀不出這種檔案，看起來就像「無法分享」。
+   下面這段在存檔前把它重新封裝成一般的 MP4（moov + mdat），並補上正確時長。 */
+/* fMP4（moof/mdat 分段）→ 一般 MP4（moov+mdat）重新封裝
+   iOS Safari 的 MediaRecorder 產出的是分段 MP4，且時長寫成 0，
+   LINE、相簿等大多數 App 都吃不下。這支程式把它改寫成標準結構。 */
+
+function mx_u32(b,p){return b[p]*16777216+b[p+1]*65536+b[p+2]*256+b[p+3];}
+function mx_i32(b,p){const v=mx_u32(b,p);return v>=2147483648?v-4294967296:v;}
+function mx_u64(b,p){return mx_u32(b,p)*4294967296+mx_u32(b,p+4);}
+function mx_typ(b,p){return String.fromCharCode(b[p],b[p+1],b[p+2],b[p+3]);}
+
+function mx_boxes(b,start,end){
+  const out=[];let p=start;
+  while(p+8<=end){
+    let size=mx_u32(b,p),hs=8;
+    if(size===1){size=mx_u64(b,p+8);hs=16;}
+    else if(size===0)size=end-p;
+    if(size<8||p+size>end)break;
+    out.push({type:mx_typ(b,p+4),start:p,size:size,hs:hs,body:p+hs,end:p+size});
+    p+=size;
+  }
+  return out;
+}
+function mx_find(list,t){return list.filter(x=>x.type===t);}
+function mx_one(list,t){const r=mx_find(list,t);return r.length?r[0]:null;}
+function mx_children(b,mx_box){return mx_boxes(b,mx_box.body,mx_box.end);}
+
+function mx_parseTrun(b,tr,tfhd,baseOffset){
+  const flags=mx_u32(b,tr.body)&0xffffff;
+  const cnt=mx_u32(b,tr.body+4);
+  let p=tr.body+8;
+  let dataOff=0;
+  if(flags&0x1){dataOff=mx_i32(b,p);p+=4;}
+  let firstFlags=null;
+  if(flags&0x4){firstFlags=mx_u32(b,p);p+=4;}
+  const samples=[];
+  let off=baseOffset+dataOff;
+  for(let i=0;i<cnt;i++){
+    let dur=tfhd.defDur, size=tfhd.defSize, fl=tfhd.defFlags, cto=0;
+    if(flags&0x100){dur=mx_u32(b,p);p+=4;}
+    if(flags&0x200){size=mx_u32(b,p);p+=4;}
+    if(flags&0x400){fl=mx_u32(b,p);p+=4;}
+    if(flags&0x800){cto=mx_i32(b,p);p+=4;}
+    if(i===0&&firstFlags!==null)fl=firstFlags;
+    samples.push({off:off,size:size,dur:dur,cto:cto,sync:!(fl&0x10000)});
+    off+=size;
+  }
+  return {samples:samples,dataOff:dataOff};
+}
+
+function mx_parseTfhd(b,mx_box){
+  const flags=mx_u32(b,mx_box.body)&0xffffff;
+  const trackId=mx_u32(b,mx_box.body+4);
+  let p=mx_box.body+8;
+  let base=null;
+  if(flags&0x1){base=mx_u64(b,p);p+=8;}
+  if(flags&0x2){p+=4;}
+  let defDur=0,defSize=0,defFlags=0;
+  if(flags&0x8){defDur=mx_u32(b,p);p+=4;}
+  if(flags&0x10){defSize=mx_u32(b,p);p+=4;}
+  if(flags&0x20){defFlags=mx_u32(b,p);p+=4;}
+  return {trackId:trackId,base:base,defDur:defDur,defSize:defSize,defFlags:defFlags,
+          defaultBaseIsMoof:!!(flags&0x020000),hasBase:!!(flags&0x1)};
+}
+
+/* ---- 產生 mx_box ---- */
+function mx_box(type,...parts){
+  let len=8;parts.forEach(p=>len+=p.length);
+  const head=new Uint8Array(8);
+  head[0]=(len>>>24)&255;head[1]=(len>>>16)&255;head[2]=(len>>>8)&255;head[3]=len&255;
+  for(let i=0;i<4;i++)head[4+i]=type.charCodeAt(i);
+  const out=new Uint8Array(len);out.set(head,0);
+  let p=8;parts.forEach(x=>{out.set(x,p);p+=x.length;});
+  return out;
+}
+function mx_b32(v){return new Uint8Array([(v>>>24)&255,(v>>>16)&255,(v>>>8)&255,v&255]);}
+function mx_b64(v){const hi=Math.floor(v/4294967296),lo=v>>>0;
+  return new Uint8Array([(hi>>>24)&255,(hi>>>16)&255,(hi>>>8)&255,hi&255,
+                         (lo>>>24)&255,(lo>>>16)&255,(lo>>>8)&255,lo&255]);}
+function mx_cat(arr){let n=0;arr.forEach(a=>n+=a.length);const o=new Uint8Array(n);let p=0;
+  arr.forEach(a=>{o.set(a,p);p+=a.length;});return o;}
+
+function mx_remux(bytes){
+  const b=bytes;
+  const top=mx_boxes(b,0,b.length);
+  const ftyp=mx_one(top,"ftyp");
+  const moov=mx_one(top,"moov");
+  if(!moov)throw new Error("no moov");
+  const moofs=mx_find(top,"moof");
+  if(!moofs.length)return null;              /* 不是分段 MP4，不用處理 */
+
+  const mvBoxes=mx_children(b,moov);
+  const mvhd=mx_one(mvBoxes,"mvhd");
+  const mvTimescale=mx_u32(b,mvhd.body+(b[mvhd.body]===1?20:12));
+  const traks=mx_find(mvBoxes,"trak");
+
+  /* 收集每個 track 的所有 sample */
+  const tracks={};
+  traks.forEach(tk=>{
+    const tkhd=mx_one(mx_children(b,tk),"tkhd");
+    const v=b[tkhd.body];
+    const id=mx_u32(b,tkhd.body+(v===1?20:12));
+    tracks[id]={trak:tk,samples:[]};
+  });
+
+  moofs.forEach(mf=>{
+    const trafs=mx_find(mx_children(b,mf),"traf");
+    trafs.forEach(tf=>{
+      const tfc=mx_children(b,tf);
+      const tfhdBox=mx_one(tfc,"tfhd");
+      if(!tfhdBox)return;
+      const tfhd=mx_parseTfhd(b,tfhdBox);
+      const t=tracks[tfhd.trackId];
+      if(!t)return;
+      /* 基準位移：預設是 moof 起點（default-base-is-moof） */
+      const base=tfhd.hasBase?tfhd.base:mf.start;
+      let running=null;
+      mx_find(tfc,"trun").forEach(tr=>{
+        const flags=mx_u32(b,tr.body)&0xffffff;
+        const hasOff=!!(flags&0x1);
+        const r=mx_parseTrun(b,tr,tfhd,hasOff?base:(running===null?base:running));
+        r.samples.forEach(s=>t.samples.push(s));
+        if(r.samples.length){
+          const last=r.samples[r.samples.length-1];
+          running=last.off+last.size;
+        }
+      });
+    });
+  });
+
+  /* 依序把 sample 資料集中成一個 mdat */
+  const order=[];
+  Object.keys(tracks).forEach(id=>{
+    tracks[id].samples.forEach((s,i)=>order.push({id:+id,i:i,off:s.off,size:s.size}));
+  });
+  order.sort((a,b2)=>a.off-b2.off);
+  let mdatSize=0;order.forEach(o=>mdatSize+=o.size);
+
+  const newOff={};
+  let cur=0;
+  order.forEach(o=>{
+    if(!newOff[o.id])newOff[o.id]=[];
+    newOff[o.id][o.i]=cur;cur+=o.size;
+  });
+
+  /* ---- 為每個 track 重建 stbl ---- */
+  function buildStbl(id,stblOld,mediaTimescale){
+    const ss=tracks[id].samples;
+    const offs=newOff[id]||[];
+    const old=mx_children(b,stblOld);
+    const keep=[];
+    ["stsd"].forEach(t=>{const x=mx_one(old,t);if(x)keep.push(b.slice(x.start,x.end));});
+
+    /* stts */
+    const stts=[];
+    let runDur=-1,runCnt=0;
+    ss.forEach(s=>{
+      if(s.dur===runDur){runCnt++;}
+      else{if(runCnt)stts.push([runCnt,runDur]);runDur=s.dur;runCnt=1;}
+    });
+    if(runCnt)stts.push([runCnt,runDur]);
+    const sttsBody=[mx_b32(0),mx_b32(stts.length)];
+    stts.forEach(e=>{sttsBody.push(mx_b32(e[0]));sttsBody.push(mx_b32(e[1]));});
+    keep.push(mx_box("stts",mx_cat(sttsBody)));
+
+    /* ctts（若有 composition offset） */
+    if(ss.some(s=>s.cto!==0)){
+      const ctts=[];let rv=null,rc=0;
+      ss.forEach(s=>{if(s.cto===rv){rc++;}else{if(rc)ctts.push([rc,rv]);rv=s.cto;rc=1;}});
+      if(rc)ctts.push([rc,rv]);
+      const body=[new Uint8Array([1,0,0,0]),mx_b32(ctts.length)];
+      ctts.forEach(e=>{body.push(mx_b32(e[0]));body.push(mx_b32(e[1]>>>0));});
+      keep.push(mx_box("ctts",mx_cat(body)));
+    }
+
+    /* stss（關鍵影格）*/
+    const syncs=[];
+    ss.forEach((s,i)=>{if(s.sync)syncs.push(i+1);});
+    if(syncs.length&&syncs.length!==ss.length){
+      const body=[mx_b32(0),mx_b32(syncs.length)];
+      syncs.forEach(v=>body.push(mx_b32(v)));
+      keep.push(mx_box("stss",mx_cat(body)));
+    }
+
+    /* stsc：每個 sample 自成一個 chunk，最單純也最不會出錯 */
+    keep.push(mx_box("stsc",mx_cat([mx_b32(0),mx_b32(1),mx_b32(1),mx_b32(1),mx_b32(1)])));
+
+    /* stsz */
+    const szBody=[mx_b32(0),mx_b32(0),mx_b32(ss.length)];
+    ss.forEach(s=>szBody.push(mx_b32(s.size)));
+    keep.push(mx_box("stsz",mx_cat(szBody)));
+
+    /* co64：用 64 位元，長度固定，才好兩段式計算位移 */
+    const coBody=[mx_b32(0),mx_b32(ss.length)];
+    ss.forEach((s,i)=>coBody.push(mx_b64(offs[i]||0)));
+    keep.push({__co:true,data:mx_cat(coBody),count:ss.length});
+
+    return keep;
+  }
+
+  /* 兩段式：先算出 moov 長度，再填入真正的 chunk 位移 */
+  function assemble(mdatStart){
+    const newTraks=[];
+    traks.forEach(tk=>{
+      const tkc=mx_children(b,tk);
+      const tkhd=mx_one(tkc,"tkhd");
+      const v=b[tkhd.body];
+      const id=mx_u32(b,tkhd.body+(v===1?20:12));
+      const mdia=mx_one(tkc,"mdia");
+      const mdc=mx_children(b,mdia);
+      const mdhd=mx_one(mdc,"mdhd");
+      const mv=b[mdhd.body];
+      const mts=mx_u32(b,mdhd.body+(mv===1?20:12));
+      const ss=tracks[id].samples;
+      let dur=0;ss.forEach(s=>dur+=s.dur);
+
+      /* tkhd：填入 movie timescale 的時長 */
+      const tkhdBuf=b.slice(tkhd.start,tkhd.end);
+      const mvDur=Math.round(dur/mts*mvTimescale);
+      if(v===1)writeU64(tkhdBuf,tkhd.body-tkhd.start+28,mvDur);
+      else writeU32(tkhdBuf,tkhd.body-tkhd.start+20,mvDur);
+
+      /* mdhd：填入 media timescale 的時長 */
+      const mdhdBuf=b.slice(mdhd.start,mdhd.end);
+      if(mv===1)writeU64(mdhdBuf,mdhd.body-mdhd.start+24,dur);
+      else writeU32(mdhdBuf,mdhd.body-mdhd.start+16,dur);
+
+      const minf=mx_one(mdc,"minf");
+      const mic=mx_children(b,minf);
+      const stbl=mx_one(mic,"stbl");
+      const parts=buildStbl(id,stbl,mts);
+      const stblParts=parts.map(x=>x.__co?mx_box("co64",x.data):x);
+      const newStbl=mx_box("stbl",...stblParts);
+      const minfParts=mic.map(x=>x.type==="stbl"?newStbl:b.slice(x.start,x.end));
+      const newMinf=mx_box("minf",...minfParts);
+      const mdiaParts=mdc.map(x=>x.type==="minf"?newMinf:(x.type==="mdhd"?mdhdBuf:b.slice(x.start,x.end)));
+      const newMdia=mx_box("mdia",...mdiaParts);
+      const trakParts=tkc.filter(x=>x.type!=="edts").map(x=>
+        x.type==="mdia"?newMdia:(x.type==="tkhd"?tkhdBuf:b.slice(x.start,x.end)));
+      newTraks.push(mx_box("trak",...trakParts));
+    });
+
+    /* mvhd：填入整體時長 */
+    let maxDur=0;
+    Object.keys(tracks).forEach(id=>{
+      const tk=tracks[id];const trak=tk.trak;
+      const mdhd=mx_one(mx_children(b,mx_one(mx_children(b,trak),"mdia")),"mdhd");
+      const mv=b[mdhd.body];
+      const mts=mx_u32(b,mdhd.body+(mv===1?20:12));
+      let d=0;tk.samples.forEach(s=>d+=s.dur);
+      maxDur=Math.max(maxDur,Math.round(d/mts*mvTimescale));
+    });
+    const mvhdBuf=b.slice(mvhd.start,mvhd.end);
+    if(b[mvhd.body]===1)writeU64(mvhdBuf,mvhd.body-mvhd.start+24,maxDur);
+    else writeU32(mvhdBuf,mvhd.body-mvhd.start+16,maxDur);
+
+    return mx_box("moov",mvhdBuf,...newTraks);
+  }
+
+  function writeU32(buf,p,v){buf[p]=(v>>>24)&255;buf[p+1]=(v>>>16)&255;buf[p+2]=(v>>>8)&255;buf[p+3]=v&255;}
+  function writeU64(buf,p,v){const hi=Math.floor(v/4294967296),lo=v>>>0;
+    writeU32(buf,p,hi);writeU32(buf,p+4,lo);}
+
+  const ftypBuf=ftyp?b.slice(ftyp.start,ftyp.end)
+                    :mx_box("ftyp",mx_strBytes("isom"),mx_b32(512),mx_strBytes("isomiso2avc1mp41"));
+  const pass1=assemble(0);
+  const mdatStart=ftypBuf.length+pass1.length+16;   /* 16 = mdat 的 64 位元表頭 */
+  Object.keys(newOff).forEach(id=>{
+    newOff[id]=newOff[id].map(v=>v+mdatStart);
+  });
+  const moovNew=assemble(mdatStart);
+
+  /* 組出 mdat（64 位元長度） */
+  const mdatHead=new Uint8Array(16);
+  mdatHead[3]=1;
+  "mdat".split("").forEach((c,i)=>mdatHead[4+i]=c.charCodeAt(0));
+  const total=mdatSize+16;
+  const hi=Math.floor(total/4294967296),lo=total>>>0;
+  writeU32(mdatHead,8,hi);writeU32(mdatHead,12,lo);
+
+  const out=new Uint8Array(ftypBuf.length+moovNew.length+16+mdatSize);
+  let p=0;
+  out.set(ftypBuf,p);p+=ftypBuf.length;
+  out.set(moovNew,p);p+=moovNew.length;
+  out.set(mdatHead,p);p+=16;
+  order.forEach(o=>{out.set(b.subarray(o.off,o.off+o.size),p);p+=o.size;});
+  return out;
+}
+function mx_strBytes(s){const a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
+
+
+
+/* 只處理分段 MP4；其他格式或失敗時，原封不動回傳，不影響既有流程 */
+async function fixVideoBlob(blob,mime){
+  try{
+    if(!blob||!/mp4/i.test(mime||blob.type||""))return blob;
+    const buf=new Uint8Array(await blob.arrayBuffer());
+    const out=mx_remux(buf);
+    if(!out||!out.length)return blob;
+    return new Blob([out],{type:"video/mp4"});
+  }catch(e){logErr("mx_remux",e);return blob;}
+}
+
 /* ================= 語言：繁體／簡體／English ================= */
 function LG(){try{return (S&&S.set&&S.set.lang)||"zh-Hant";}catch(e){return "zh-Hant";}}
 function isEN(){return LG()==="en";}
@@ -2981,8 +3287,9 @@ async function musicRec(){
     try{if(bgmURL)URL.revokeObjectURL(bgmURL);}catch(_){}
     try{if(ac)ac.close();}catch(_){}
     const type=mr.mimeType||mime||"video/webm";
-    const blob=new Blob(chunks,{type});
-    await putRec({id:uid(),ts:Date.now(),blob,mime:type,kind:"video",dur:recSec,pid:pending.pid,
+    let blob=new Blob(chunks,{type});
+    blob=await fixVideoBlob(blob,type);
+    await putRec({id:uid(),ts:Date.now(),blob,mime:blob.type||type,kind:"video",dur:recSec,pid:pending.pid,
       sceneId:pending.sid,sceneName:pendName(),cardIdx:pending.i,
       v:c.v,r:c.r,w:merge(c.w,p),t:c.t,b:c.b});
     if(pending.pid)markCared(pending.pid,pendName());
@@ -3082,8 +3389,9 @@ async function toggleRec(){
     try{if(bgmURL)URL.revokeObjectURL(bgmURL);}catch(_){}
     try{if(ac)ac.close();}catch(_){}
     const type=mr.mimeType||mime||(kind==="video"?"video/webm":"audio/webm");
-    const blob=new Blob(chunks,{type});
-    await putRec({id:uid(),ts:Date.now(),blob,mime:type,kind,dur:recSec,pid:pending.pid,
+    let blob=new Blob(chunks,{type});
+    if(kind==="video")blob=await fixVideoBlob(blob,type);
+    await putRec({id:uid(),ts:Date.now(),blob,mime:blob.type||type,kind,dur:recSec,pid:pending.pid,
       sceneId:pending.sid,sceneName:pendName(),cardIdx:pending.i,
       v:c.v,r:c.r,w:merge(c.w,p),t:c.t,b:c.b});
     if(pending.pid)markCared(pending.pid,pendName());
@@ -3100,12 +3408,25 @@ async function toggleRec(){
 async function getRec(id){const a=await allRec();return a.find(x=>x.id===id);}
 async function rmRec(id){if(!confirm("刪除這個作品？"))return;await delRec(id);vRec();toast("已刪除");}
 async function dlRec(id){const r=await getRec(id);if(!r)return;
-  const u=URL.createObjectURL(r.blob);const a=document.createElement("a");
-  a.href=u;a.download="321"+(r.kind==="video"?"video":"voice")+extOf(r.mime);a.click();
+  const blob=await readyBlob(r);
+  const mime=(r.kind==="video"&&blob!==r.blob)?"video/mp4":r.mime;
+  const u=URL.createObjectURL(blob);const a=document.createElement("a");
+  a.href=u;a.download="321"+(r.kind==="video"?"video":"voice")+extOf(mime);a.click();
   setTimeout(()=>URL.revokeObjectURL(u),6000);}
+/* 舊版本存下來的影片仍是分段 MP4，分享前補修一次，並把修好的存回去 */
+async function readyBlob(r){
+  if(r.kind!=="video")return r.blob;
+  const fixed=await fixVideoBlob(r.blob,r.mime);
+  if(fixed!==r.blob){
+    try{await putRec(Object.assign({},r,{blob:fixed,mime:"video/mp4"}));}catch(e){}
+  }
+  return fixed;
+}
 async function shareRec(id){
   const r=await getRec(id);if(!r)return;
-  const f=new File([r.blob],"321"+(r.kind==="video"?"card":"voice")+extOf(r.mime),{type:r.mime});
+  const blob=await readyBlob(r);
+  const mime=(r.kind==="video"&&blob!==r.blob)?"video/mp4":r.mime;
+  const f=new File([blob],"321"+(r.kind==="video"?"card":"voice")+extOf(mime),{type:mime});
   if(navigator.canShare&&navigator.canShare({files:[f]})){
     try{await navigator.share({files:[f],title:"321愛的關懷"});return;}catch(e){if(e&&e.name==="AbortError")return;}
   }
@@ -3250,7 +3571,7 @@ function vSet(){
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
       <button class="btn wide ghost" style="margin-top:9px" onclick="showErrLog()">查看錯誤紀錄</button>
-      <div class="hint">版本 v3.2.0（三語版）</div>
+      <div class="hint">版本 v3.3.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
@@ -3353,7 +3674,7 @@ function expICS(){
    每次改版：index.html 的 APP_VER、version.json、sw.js 的 CACHE 版號要一起跳。
    App 開啟時與每次切回前景時（最多每 5 分鐘一次）向伺服器問一次版本，
    有新版就在使用者不忙的時候自動換版；正在錄影或打字時只提示，不打斷。 */
-const APP_VER="3.2.0";
+const APP_VER="3.3.0";
 let __lastChk=0,__upd=false;
 function appBusy(){
   if(mr&&mr.state==="recording")return true;
