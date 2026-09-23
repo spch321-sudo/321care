@@ -199,6 +199,19 @@ body.dark .tpl.on span:last-child{color:var(--gold-l)}
 canvas#cv{width:100%;border-radius:16px;border:1px solid var(--line);display:block}
 
 .cprev{margin:12px 0 4px;min-height:60px}
+.hlist{max-height:56vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.hrow{display:flex;align-items:center;gap:6px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.hrow:last-child{border-bottom:none}
+.hmeta{flex:1;min-width:120px}
+.hrow .ht{font-weight:700;font-size:calc(15px*var(--fs))}
+.hrow .hs{font-size:calc(12px*var(--fs));color:var(--ink3)}
+.pxgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;min-height:140px}
+.pxcell{position:relative;padding:0;border:2px solid transparent;border-radius:10px;overflow:hidden;
+  background:var(--mist);cursor:pointer;aspect-ratio:3/4}
+.pxcell img{width:100%;height:100%;object-fit:cover;display:block}
+.pxcell span{position:absolute;left:0;right:0;bottom:0;padding:12px 5px 3px;font-size:9.5px;line-height:1.3;
+  color:#fff;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  background:linear-gradient(to bottom,rgba(0,0,0,0),rgba(0,0,0,.66))}
 :focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:8px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media (prefers-reduced-motion: reduce){
@@ -1739,6 +1752,235 @@ async function fixVideoBlob(blob,mime){
   }catch(e){logErr("mx_remux",e);return blob;}
 }
 
+
+/* ================= 詩歌庫（30 首經典聖詩）=================
+   這些都是公有領域的經典聖詩。音樂檔請由使用者自行加入一次（版權屬原出版者），
+   之後就存在這支手機的詩歌庫裡，每次做卡片直接挑，不必再從檔案翻找。 */
+const HYMN_LIST=[
+ {id:"h01",n:"奇異恩典",s:"Amazing Grace"},
+ {id:"h02",n:"祢真偉大",s:"How Great Thou Art"},
+ {id:"h03",n:"我時刻需要主",s:"I Need Thee Every Hour"},
+ {id:"h04",n:"堅固保障",s:"A Mighty Fortress Is Our God"},
+ {id:"h05",n:"聖哉三一",s:"Holy, Holy, Holy"},
+ {id:"h06",n:"何等恩友",s:"What a Friend We Have in Jesus"},
+ {id:"h07",n:"你的信實廣大",s:"Great Is Thy Faithfulness"},
+ {id:"h08",n:"一切全獻",s:"I Surrender All"},
+ {id:"h09",n:"靠近主懷",s:"Nearer, My God, to Thee"},
+ {id:"h10",n:"與主更親",s:"Just a Closer Walk with Thee"},
+ {id:"h11",n:"平安夜",s:"Silent Night"},
+ {id:"h12",n:"普世歡騰",s:"Joy to the World"},
+ {id:"h13",n:"我心靈得安寧",s:"It Is Well with My Soul"},
+ {id:"h14",n:"萬古磐石",s:"Rock of Ages"},
+ {id:"h15",n:"主活著",s:"He Lives"},
+ {id:"h16",n:"因祂活著",s:"Because He Lives"},
+ {id:"h17",n:"十字架上",s:"The Old Rugged Cross"},
+ {id:"h18",n:"耶穌恩友",s:"Jesus, Lover of My Soul"},
+ {id:"h19",n:"領我全所",s:"He Leadeth Me"},
+ {id:"h20",n:"主愛何大",s:"The Love of God"},
+ {id:"h21",n:"每日與主同行",s:"Day by Day"},
+ {id:"h22",n:"主是我牧者",s:"The Lord's My Shepherd"},
+ {id:"h23",n:"求主同住",s:"Abide with Me"},
+ {id:"h24",n:"信靠耶穌",s:"Trusting Jesus"},
+ {id:"h25",n:"數算主恩",s:"Count Your Blessings"},
+ {id:"h26",n:"讚美一神",s:"Praise God from Whom All Blessings Flow"},
+ {id:"h27",n:"主恩典夠用",s:"His Grace Is Sufficient"},
+ {id:"h28",n:"我知誰掌管明天",s:"I Know Who Holds Tomorrow"},
+ {id:"h29",n:"有福的確據",s:"Blessed Assurance"},
+ {id:"h30",n:"到主面前",s:"Just As I Am"}
+];
+let hymnCache=[];
+async function loadHymns(){try{hymnCache=await allHymn();}catch(e){hymnCache=[];}return hymnCache;}
+function hymnMeta(id){return HYMN_LIST.find(h=>h.id===id)||{id:id,n:id,s:""};}
+function hymnHas(id){return hymnCache.some(h=>h.id===id);}
+
+async function openHymnSheet(){
+  await loadHymns();
+  const rows=HYMN_LIST.map(h=>{
+    const has=hymnHas(h.id);
+    return `<div class="hrow">
+      <div class="hmeta">
+        <div class="ht">${h.n}</div>
+        <div class="hs">${h.s}</div>
+      </div>
+      ${has?`<button class="btn ghost sm" onclick="useHymn('${h.id}')">選用</button>
+             <button class="btn ghost sm" onclick="previewHymn('${h.id}')">試聽</button>
+             <button class="btn ghost sm" style="color:var(--red);border-color:var(--red)" onclick="rmHymn('${h.id}')">移除</button>`
+            :`<label class="btn ghost sm" style="cursor:pointer">加入音樂檔
+               <input type="file" style="display:none" onchange="addHymn('${h.id}',this)"></label>`}
+    </div>`;
+  }).join("");
+  const cnt=hymnCache.length;
+  sheet("詩歌庫",`
+   <div class="hint">30 首經典聖詩。每首<b>只需加入音樂檔一次</b>，之後就存在這支手機裡，做卡片時直接挑選，不用再翻檔案。</div>
+   <div class="hint">目前已加入 ${cnt} / 30 首。音樂檔的版權屬原出版者，請使用您自己合法取得的檔案。</div>
+   <hr class="sep">
+   <div class="hlist">${rows}</div>`);
+}
+async function addHymn(id,inp){
+  const f=inp&&inp.files&&inp.files[0];if(!f)return;
+  const ok=(f.type&&(f.type.indexOf("audio")===0||f.type.indexOf("video")===0))||AUD_EXT.test(f.name||"");
+  if(!ok){toast("這不是音樂檔，請選 mp3、m4a、wav 等音檔");return;}
+  if(f.size>25*1024*1024){toast("音檔太大（超過 25MB），請選短一點的");return;}
+  const okSave=await putHymn({id:id,blob:f,fname:f.name||"",ts:Date.now()});
+  if(!okSave){toast("詩歌庫存不下了，請先移除幾首");return;}
+  await loadHymns();openHymnSheet();toast("已加入詩歌庫");
+}
+async function rmHymn(id){
+  if(!confirm(LT("要把這首從詩歌庫移除嗎？")))return;
+  await delHymn(id);await loadHymns();openHymnSheet();toast("已移除");
+}
+async function useHymn(id){
+  await loadHymns();
+  const h=hymnCache.find(x=>x.id===id);
+  if(!h){toast("這首還沒有加入音樂檔");return;}
+  bgmBlob=h.blob;bgmName=hymnMeta(id).n;
+  closeSheet();reRender();toast("已選用詩歌");
+}
+let __hpv=null;
+async function previewHymn(id){
+  await loadHymns();
+  const h=hymnCache.find(x=>x.id===id);if(!h)return;
+  try{if(__hpv){__hpv.pause();URL.revokeObjectURL(__hpv.src);__hpv=null;}}catch(e){}
+  const u=URL.createObjectURL(h.blob);
+  __hpv=new Audio();__hpv.src=u;__hpv.play().catch(()=>{});
+  toast("試聽中…再按一次「試聽」可停止");
+  setTimeout(()=>{try{if(__hpv){__hpv.pause();URL.revokeObjectURL(u);__hpv=null;}}catch(e){}},20000);
+}
+
+/* ================= 免費圖庫（維基共享資源）=================
+   使用 Wikimedia Commons 的公開 API：完全免費、不需要金鑰、允許跨網域，
+   圖片皆為自由授權（多數需標示作者，介面上會顯示）。 */
+const PX_CHIPS=["晨曦","日落","山","海","湖","草原","花","天空","星空","雲",
+                "森林","小路","溪流","麥田","雨","雪","光","十字架","教堂","書桌"];
+const PX_EN={"晨曦":"sunrise","日落":"sunset","山":"mountain landscape","海":"sea ocean",
+ "湖":"lake calm","草原":"meadow","花":"flower closeup","天空":"sky","星空":"night sky stars",
+ "雲":"clouds","森林":"forest","小路":"path trail","溪流":"stream creek","麥田":"wheat field",
+ "雨":"rain window","雪":"snow winter","光":"sunbeam light","十字架":"cross silhouette",
+ "教堂":"church interior","書桌":"desk bible"};
+let pxBusy=false,pxHits=[];
+function openPxSheet(){
+  sheet("免費圖庫",`
+   <div class="hint">圖片來自維基共享資源，皆為自由授權、可免費使用。選一張就會直接套用到卡片上。</div>
+   <div class="row tight" style="margin:10px 0 6px">
+     <input id="pxq" placeholder="輸入想找的景物，例如：晨曦、海邊" style="flex:1;min-width:140px">
+     <button class="btn sm" onclick="pxSearch()">搜尋</button>
+   </div>
+   <div class="row tight" style="margin-bottom:10px">
+     ${PX_CHIPS.map(c=>`<button class="chip" onclick="pxSearch('${c}')">${c}</button>`).join("")}
+   </div>
+   <div id="pxgrid" class="pxgrid"></div>`);
+  pxSearch("晨曦");
+}
+async function pxSearch(q){
+  if(pxBusy)return;
+  const box=document.getElementById("pxgrid");
+  const inp=document.getElementById("pxq");
+  let term=q||(inp?inp.value.trim():"");
+  if(!term)return;
+  if(inp&&q)inp.value=q;
+  pxBusy=true;
+  if(box)box.innerHTML=`<div class="muted" style="grid-column:1/-1;text-align:center;padding:24px 0">${LT("正在找圖…")}</div>`;
+  const en=PX_EN[term]||term;
+  try{
+    const url="https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*"
+      +"&generator=search&gsrnamespace=6&gsrlimit=24"
+      +"&gsrsearch="+encodeURIComponent("filetype:bitmap -svg "+en)
+      +"&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=420";
+    const res=await fetch(url,{cache:"no-store"});
+    const j=await res.json();
+    const pages=(j&&j.query&&j.query.pages)?Object.values(j.query.pages):[];
+    pxHits=pages.map(pg=>{
+      const ii=(pg.imageinfo&&pg.imageinfo[0])||null;
+      if(!ii)return null;
+      const em=ii.extmetadata||{};
+      const author=((em.Artist&&em.Artist.value)||"").replace(/<[^>]*>/g,"").slice(0,60);
+      const lic=((em.LicenseShortName&&em.LicenseShortName.value)||"").slice(0,30);
+      return {thumb:ii.thumburl||ii.url,full:ii.url,title:(pg.title||"").replace(/^File:/,""),author:author,lic:lic};
+    }).filter(Boolean);
+    if(!pxHits.length){
+      if(box)box.innerHTML=`<div class="muted" style="grid-column:1/-1;text-align:center;padding:24px 0">${LT("找不到合適的圖，換個詞試試")}</div>`;
+    }else if(box){
+      box.innerHTML=pxHits.map((h,i)=>`
+        <button class="pxcell" onclick="pxPick(${i})" aria-label="${esc(h.title)}">
+          <img src="${esc(h.thumb)}" alt="${esc(h.title)}" loading="lazy">
+          <span>${esc(h.author||h.lic||"")}</span>
+        </button>`).join("");
+      a11y(box);
+    }
+  }catch(e){
+    logErr("px",e);
+    if(box)box.innerHTML=`<div class="muted" style="grid-column:1/-1;text-align:center;padding:24px 0">${LT("目前沒有網路，圖庫暫時無法使用")}</div>`;
+  }
+  pxBusy=false;
+}
+function pxPick(i){
+  const h=pxHits[i];if(!h)return;
+  toast("正在載入圖片…");
+  const im=new Image();
+  im.crossOrigin="anonymous";
+  im.onload=()=>{
+    photoImg=im;photoMode="bg";photoCredit=(h.author||"")+(h.lic?("　"+h.lic):"");
+    closeSheet();reRender();toast("已套用圖庫相片");
+  };
+  im.onerror=()=>{logErr("pximg",h.full);toast("這張讀取失敗，換一張試試");};
+  im.src=h.thumb;
+}
+
+/* ================= 自選經文做圖 =================
+   貼上任何一段經文（或自己想寫的話），直接做成卡片。 */
+let cvV="",cvR="",cvW="";
+function cvOpen(){
+  sheet("自選經文做圖",`
+   <div class="hint">把任何一段經文貼進來，就能做成卡片。貼上時若帶著出處（例如「詩篇 46:10」），會自動幫您分開。</div>
+   <label class="f">經文</label>
+   <textarea id="cv_v" rows="4" placeholder="把經文貼在這裡" oninput="cvSmart(this.value)">${esc(cvV)}</textarea>
+   <label class="f">出處</label>
+   <input id="cv_r" value="${esc(cvR)}" placeholder="例：詩篇 46:10">
+   <label class="f">想說的話（可留空）</label>
+   <textarea id="cv_w" rows="5" placeholder="可用 {稱呼} 代表收卡人，送出時自動換成真實姓名" oninput="cvW=this.value">${esc(cvW)}</textarea>
+   <div class="hint">可用代碼：{稱呼}{姓名}{配偶}{家人}{團體}{署名}</div>
+   <hr class="sep">
+   <button class="btn wide" onclick="cvMake()">做成圖卡</button>
+   <button class="btn wide ghost" style="margin-top:9px" onclick="cvRec()">錄音做卡</button>`);
+}
+/* 貼上整段時，把末尾的出處自動抓出來 */
+function cvSmart(v){
+  cvV=v;
+  const m=v.match(/^([\s\S]*?)[（(【\s]*((?:[\u4e00-\u9fff]{1,8}(?:前書|後書|福音|書|記|音|篇|傳|哀歌)?)\s*\d+\s*[:：]\s*\d+(?:\s*[-–~]\s*\d+)?)[）)】\s]*$/);
+  if(m&&m[1].trim().length>4){
+    const r=document.getElementById("cv_r");
+    if(r&&!r.value.trim()){
+      r.value=m[2].replace(/：/,":").trim();cvR=r.value;
+      const t=document.getElementById("cv_v");
+      if(t){t.value=m[1].replace(/[「」“”]/g,"").trim();cvV=t.value;}
+      toast("已自動分出經文與出處");
+    }
+  }
+}
+function cvGrab(){
+  const g=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
+  cvV=g("cv_v");cvR=g("cv_r");cvW=g("cv_w");
+  if(!cvV){toast("請先貼上或輸入經文");return null;}
+  return {v:cvV,r:cvR,w:cvW||"{稱呼}平安！願這節經文成為您今天的力量。",b:BL()[0]};
+}
+function cvMake(){
+  const c=cvGrab();if(!c)return;
+  const p=S.people.find(x=>x.id===curPid);
+  closeSheet();
+  __cvCard=c;
+  openImgSheet(c,p,"makeImgCv()","自選經文");
+}
+let __cvCard=null;
+function makeImgCv(){
+  const p=S.people.find(x=>x.id===curPid);
+  openImgSheet(__cvCard,p,"makeImgCv()","自選經文");
+}
+function cvRec(){
+  const c=cvGrab();if(!c)return;
+  pending={sid:"__cv",i:0,pid:curPid,card:c};
+  closeSheet();go("rec");
+}
+
 /* ================= 語言：繁體／簡體／English ================= */
 function LG(){try{return (S&&S.set&&S.set.lang)||"zh-Hant";}catch(e){return "zh-Hant";}}
 function isEN(){return LG()==="en";}
@@ -1901,6 +2143,38 @@ var EN_RULES=[
  ["署名會自動排到相片的另一邊，不會被蓋住。","The signature moves to the opposite side of the photo so it is never covered."],
  ["可把相片當卡片背景，或像貼紙貼在卡片上，大小與位置都能調。","Use the photo as the card background, or place it like a sticker — you can set its size and position."],
  ["左下","Bottom left"],["正下","Bottom centre"],["右下","Bottom right"],["左上","Top left"],["右上","Top right"],
+ ["詩歌庫","Hymn library"],["管理詩歌庫（30 首）","Manage hymn library (30 hymns)"],
+ ["🎵 從詩歌庫挑一首（30 首）","🎵 Choose from the hymn library (30 hymns)"],
+ ["30 首經典聖詩。每首只需加入音樂檔一次，之後就存在這支手機裡，做卡片時直接挑選，不用再翻檔案。","30 classic hymns. Add each audio file once and it stays on this phone, ready to pick whenever you make a card."],
+ ["30 首經典聖詩，每首只要加入音樂檔一次，之後做卡片就能直接挑選。音樂檔只存在這支手機裡。","30 classic hymns. Add each audio file once and pick it any time. The files stay on this phone only."],
+ ["音樂檔的版權屬原出版者，請使用您自己合法取得的檔案。","Audio files remain the copyright of their publishers — please use files you have legally obtained."],
+ ["加入音樂檔","Add audio file"],["選用","Use"],["試聽","Preview"],["移除","Remove"],
+ ["已加入詩歌庫","Added to the hymn library"],["已選用詩歌","Hymn selected"],
+ ["詩歌庫存不下了，請先移除幾首","The hymn library is full — please remove a few first"],
+ ["要把這首從詩歌庫移除嗎？","Remove this hymn from the library?"],
+ ["這首還沒有加入音樂檔","No audio file has been added for this hymn yet"],
+ ["試聽中…再按一次「試聽」可停止","Playing a preview…"],
+ ["免費圖庫","Free image library"],["🔍 從免費圖庫找圖","🔍 Find a photo in the free library"],
+ ["圖片來自維基共享資源，皆為自由授權、可免費使用。選一張就會直接套用到卡片上。","Photos come from Wikimedia Commons under free licences. Tap one and it is applied to the card."],
+ ["輸入想找的景物，例如：晨曦、海邊","Describe what you want, e.g. sunrise, seaside"],
+ ["搜尋","Search"],["正在找圖…","Looking for photos…"],
+ ["找不到合適的圖，換個詞試試","No matching photos — try another word"],
+ ["目前沒有網路，圖庫暫時無法使用","No network right now, so the image library is unavailable"],
+ ["正在載入圖片…","Loading the photo…"],["已套用圖庫相片","Photo applied"],
+ ["這張讀取失敗，換一張試試","That photo could not be loaded — please try another"],
+ ["圖片來源：","Photo credit: "],
+ ["可用自己的相片，也可以到免費圖庫挑一張風景。相片能當卡片背景，或像貼紙貼在卡片上，大小與位置都能調。","Use your own photo, or pick a landscape from the free library. A photo can be the card background or a sticker, with adjustable size and position."],
+ ["自選經文做圖","Make a card from your own verse"],["✍️ 自選經文做圖","✍️ Make a card from your own verse"],
+ ["自己挑一節經文貼上，就能做成卡片或錄成影片。","Paste in any verse you choose and turn it into a card or a video."],
+ ["把任何一段經文貼進來，就能做成卡片。貼上時若帶著出處（例如「詩篇 46:10」），會自動幫您分開。","Paste in any passage and turn it into a card. If the reference is included (e.g. Psalm 46:10), it is separated for you automatically."],
+ ["把經文貼在這裡","Paste the verse here"],
+ ["想說的話（可留空）","What you want to say (optional)"],
+ ["可用 {稱呼} 代表收卡人，送出時自動換成真實姓名","Use {稱呼} for the recipient; it becomes their real name when sent"],
+ ["可用代碼：{稱呼}{姓名}{配偶}{家人}{團體}{署名}","Codes you can use: {稱呼}{姓名}{配偶}{家人}{團體}{署名}"],
+ ["請先貼上或輸入經文","Please paste or type a verse first"],
+ ["已自動分出經文與出處","Verse and reference separated automatically"],
+ ["自選經文","Your own verse"],
+ ["目前已加入","Added so far: "],
  ["音樂音量","Music volume"],["換一首","Change track"],["移除音樂","Remove music"],
  ["小聲","Soft"],["適中","Medium"],["明顯","Loud"],
  ["這不是音樂檔，請選 mp3、m4a、wav 等音檔","That is not an audio file. Please choose an mp3, m4a or wav file."],
@@ -2519,6 +2793,8 @@ function vCard(){
   <div class="wrap" style="padding-top:0">
     <button class="btn wide gold" onclick="xzOpen()"><span style="font-size:1.15em">✨</span>&nbsp;請AI小智量身寫一張</button>
     <div class="hint">說明對象與情況，AI小智會為您寫出合適的經文與問候，可直接做成卡片。</div>
+    <button class="btn wide ghost" style="margin-top:9px" onclick="cvOpen()">✍️ 自選經文做圖</button>
+    <div class="hint">自己挑一節經文貼上，就能做成卡片或錄成影片。</div>
   </div>
   <div class="sec-t" style="margin-left:14px">或從現成範本挑選</div>
   <div class="chips">${kinds.map(k=>`<button class="chip ${curKind===k?"on":""}" onclick="curKind='${k}';vCard()">${k}</button>`).join("")}</div>
@@ -2664,7 +2940,7 @@ const BORDERS=[
   {id:"none",n:"無邊框"}
 ];
 let curBorder="classic";
-let photoImg=null,photoMode="bg",suppressSticker=false,selfieLayout=false,__reCall="";
+let photoImg=null,photoCredit="",photoMode="bg",suppressSticker=false,selfieLayout=false,__reCall="";
 /* 相片貼紙：大小與位置（四個角落＋正下方） */
 let stkSize=0.30, stkPos="br", stkShape="p";
 /* 音樂卡片長度：不必等整首播完 */
@@ -2695,7 +2971,7 @@ function pickBgm(inp){const f=inp&&inp.files&&inp.files[0];if(!f)return;
 function clearBgm(){bgmBlob=null;bgmName="";reRender();}
 function setBgmVol(v){bgmVol=v;reRender();}
 function reRender(){if(__reCall){try{(0,eval)(__reCall);}catch(e){}}}
-function clearPhoto(){photoImg=null;reRender();}
+function clearPhoto(){photoImg=null;photoCredit="";reRender();}
 function setPhotoMode(m){photoMode=m;reRender();}
 function pickPhoto(inp){const f=inp&&inp.files&&inp.files[0];if(!f)return;
   const rd=new FileReader();rd.onload=()=>{const im=new Image();
@@ -2916,7 +3192,8 @@ function photoPickerHTML(){
         從相簿選相片
         <input type="file"  style="display:none" onchange="pickPhoto(this)">
       </label>
-      <div class="hint">可把相片當卡片背景，或像貼紙貼在卡片上，大小與位置都能調。</div>`;
+      <button class="btn ghost wide" style="margin-top:9px" onclick="openPxSheet()">🔍 從免費圖庫找圖</button>
+      <div class="hint">可用自己的相片，也可以到免費圖庫挑一張風景。相片能當卡片背景，或像貼紙貼在卡片上，大小與位置都能調。</div>`;
   }
   return `<div class="row tight" style="margin-bottom:8px">
       <button class="chip ${photoMode==="bg"?"on":""}" onclick="setPhotoMode('bg')">作背景</button>
@@ -2938,8 +3215,10 @@ function photoPickerHTML(){
     <div class="hint">署名會自動排到相片的另一邊，不會被蓋住。</div>`:""}
     <div class="row tight">
       <label class="btn ghost sm" style="cursor:pointer">換一張<input type="file"  style="display:none" onchange="pickPhoto(this)"></label>
+      <button class="btn ghost sm" onclick="openPxSheet()">免費圖庫</button>
       <button class="btn ghost sm" style="color:var(--red);border-color:var(--red)" onclick="clearPhoto()">移除相片</button>
-    </div>`;
+    </div>
+    ${photoCredit?`<div class="hint">圖片來源：${esc(photoCredit)}</div>`:""}`;
 }
 function bgmPickerHTML(){
   if(!bgmBlob){
@@ -2947,6 +3226,7 @@ function bgmPickerHTML(){
         從檔案選音樂
         <input type="file"  style="display:none" onchange="pickBgm(this)">
       </label>
+      <button class="btn ghost wide" style="margin-top:9px" onclick="openHymnSheet()">🎵 從詩歌庫挑一首（30 首）</button>
       <div class="hint">選一首詩歌或輕音樂當背景，錄影或錄音時會輕輕鋪在您的聲音底下。</div>
       <div class="hint">選擇視窗現在會顯示所有檔案。若一時找不到，請按左下角「瀏覽」，再到 iCloud 雲碟或「我的 iPhone」裡尋找。</div>`;
   }
@@ -2961,6 +3241,7 @@ function bgmPickerHTML(){
     </div>
     <div class="row tight">
       <label class="btn ghost sm" style="cursor:pointer">換一首<input type="file"  style="display:none" onchange="pickBgm(this)"></label>
+      <button class="btn ghost sm" onclick="openHymnSheet()">詩歌庫</button>
       <button class="btn ghost sm" style="color:var(--red);border-color:var(--red)" onclick="clearBgm()">移除音樂</button>
     </div>`;
 }
@@ -3027,10 +3308,19 @@ function dlImg(){if(!lastImg)return;const a=document.createElement("a");a.href=l
 
 /* ================= 錄音 → 直接做成影片 ================= */
 let db=null;
-function openDB(){return new Promise(r=>{try{const q=indexedDB.open("care321",1);
-  q.onupgradeneeded=e=>{e.target.result.createObjectStore("rec",{keyPath:"id"});};
+function openDB(){return new Promise(r=>{try{const q=indexedDB.open("care321",2);
+  q.onupgradeneeded=e=>{
+    const d=e.target.result;
+    if(!d.objectStoreNames.contains("rec"))d.createObjectStore("rec",{keyPath:"id"});
+    if(!d.objectStoreNames.contains("hymn"))d.createObjectStore("hymn",{keyPath:"id"});
+  };
   q.onsuccess=e=>{db=e.target.result;r(db);};q.onerror=()=>r(null);}catch(e){r(null);}});}
 function tx(mode){return db.transaction("rec",mode).objectStore("rec");}
+/* ---- 詩歌庫：詩歌檔存在手機裡，存一次，以後每張卡片都能直接挑 ---- */
+function htx(mode){return db.transaction("hymn",mode).objectStore("hymn");}
+function putHymn(o){return new Promise(r=>{try{const q=htx("readwrite").put(o);q.onsuccess=()=>r(1);q.onerror=()=>r(0);}catch(e){r(0);}});}
+function allHymn(){return new Promise(r=>{try{const q=htx("readonly").getAll();q.onsuccess=()=>r(q.result||[]);q.onerror=()=>r([]);}catch(e){r([]);}});}
+function delHymn(id){return new Promise(r=>{try{const q=htx("readwrite").delete(id);q.onsuccess=()=>r(1);q.onerror=()=>r(0);}catch(e){r(0);}});}
 function putRec(o){return new Promise(r=>{const q=tx("readwrite").put(o);q.onsuccess=()=>r(1);q.onerror=()=>r(0);});}
 function allRec(){return new Promise(r=>{const q=tx("readonly").getAll();q.onsuccess=()=>r(q.result||[]);q.onerror=()=>r([]);});}
 function delRec(id){return new Promise(r=>{const q=tx("readwrite").delete(id);q.onsuccess=()=>r(1);});}
@@ -3076,7 +3366,7 @@ function recSaveCard(){
   closeSheet();vRec();toast("已套用");
 }
 function pendCard(){return (pending&&pending.card)?pending.card:getCard(pending.sid,pending.i);}
-function pendName(){return (pending&&pending.card)?"AI小智卡片":((SC().find(s=>s.id===pending.sid)||{}).n||"");}
+function pendName(){return (pending&&pending.sid==="__cv")?"自選經文":(pending&&pending.card)?"AI小智卡片":((SC().find(s=>s.id===pending.sid)||{}).n||"");}
 function xzToRec(){
   const rc=xz.result;if(!rc)return;
   pending={sid:"__xz",i:0,pid:curPid,card:{v:rc.v||"",r:rc.r||"",w:rc.w||"",b:BL()[0]}};
@@ -3549,6 +3839,12 @@ function vSet(){
       <div class="hint" id="usageBox"></div>
     </div>
 
+    <div class="sec-t">詩歌庫</div>
+    <div class="card">
+      <button class="btn wide ghost" onclick="openHymnSheet()">管理詩歌庫（30 首）</button>
+      <div class="hint">30 首經典聖詩，每首只要加入音樂檔一次，之後做卡片就能直接挑選。音樂檔只存在這支手機裡。</div>
+    </div>
+
     <div class="sec-t">AI小智</div>
     <div class="card">
       <div class="row tight">
@@ -3571,7 +3867,7 @@ function vSet(){
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
       <button class="btn wide ghost" style="margin-top:9px" onclick="showErrLog()">查看錯誤紀錄</button>
-      <div class="hint">版本 v3.3.0（三語版）</div>
+      <div class="hint">版本 v3.4.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
@@ -3674,7 +3970,7 @@ function expICS(){
    每次改版：index.html 的 APP_VER、version.json、sw.js 的 CACHE 版號要一起跳。
    App 開啟時與每次切回前景時（最多每 5 分鐘一次）向伺服器問一次版本，
    有新版就在使用者不忙的時候自動換版；正在錄影或打字時只提示，不打斷。 */
-const APP_VER="3.3.0";
+const APP_VER="3.4.0";
 let __lastChk=0,__upd=false;
 function appBusy(){
   if(mr&&mr.state==="recording")return true;
