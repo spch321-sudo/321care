@@ -1753,114 +1753,137 @@ async function fixVideoBlob(blob,mime){
 }
 
 
-/* ================= 詩歌庫（30 首經典聖詩）=================
-   這些都是公有領域的經典聖詩。音樂檔請由使用者自行加入一次（版權屬原出版者），
-   之後就存在這支手機的詩歌庫裡，每次做卡片直接挑，不必再從檔案翻找。 */
-const HYMN_LIST=[
- {id:"h01",n:"奇異恩典",s:"Amazing Grace"},
- {id:"h02",n:"祢真偉大",s:"How Great Thou Art"},
- {id:"h03",n:"我時刻需要主",s:"I Need Thee Every Hour"},
- {id:"h04",n:"堅固保障",s:"A Mighty Fortress Is Our God"},
- {id:"h05",n:"聖哉三一",s:"Holy, Holy, Holy"},
- {id:"h06",n:"何等恩友",s:"What a Friend We Have in Jesus"},
- {id:"h07",n:"你的信實廣大",s:"Great Is Thy Faithfulness"},
- {id:"h08",n:"一切全獻",s:"I Surrender All"},
- {id:"h09",n:"靠近主懷",s:"Nearer, My God, to Thee"},
- {id:"h10",n:"與主更親",s:"Just a Closer Walk with Thee"},
- {id:"h11",n:"平安夜",s:"Silent Night"},
- {id:"h12",n:"普世歡騰",s:"Joy to the World"},
- {id:"h13",n:"我心靈得安寧",s:"It Is Well with My Soul"},
- {id:"h14",n:"萬古磐石",s:"Rock of Ages"},
- {id:"h15",n:"主活著",s:"He Lives"},
- {id:"h16",n:"因祂活著",s:"Because He Lives"},
- {id:"h17",n:"十字架上",s:"The Old Rugged Cross"},
- {id:"h18",n:"耶穌恩友",s:"Jesus, Lover of My Soul"},
- {id:"h19",n:"領我全所",s:"He Leadeth Me"},
- {id:"h20",n:"主愛何大",s:"The Love of God"},
- {id:"h21",n:"每日與主同行",s:"Day by Day"},
- {id:"h22",n:"主是我牧者",s:"The Lord's My Shepherd"},
- {id:"h23",n:"求主同住",s:"Abide with Me"},
- {id:"h24",n:"信靠耶穌",s:"Trusting Jesus"},
- {id:"h25",n:"數算主恩",s:"Count Your Blessings"},
- {id:"h26",n:"讚美一神",s:"Praise God from Whom All Blessings Flow"},
- {id:"h27",n:"主恩典夠用",s:"His Grace Is Sufficient"},
- {id:"h28",n:"我知誰掌管明天",s:"I Know Who Holds Tomorrow"},
- {id:"h29",n:"有福的確據",s:"Blessed Assurance"},
- {id:"h30",n:"到主面前",s:"Just As I Am"}
-];
-let hymnCache=[];
-async function loadHymns(){try{hymnCache=await allHymn();}catch(e){hymnCache=[];}return hymnCache;}
-function hymnMeta(id){return HYMN_LIST.find(h=>h.id===id)||{id:id,n:id,s:""};}
-function hymnHas(id){return hymnCache.some(h=>h.id===id);}
-
+/* ================= 詩歌庫（30 首，隨 App 一起發佈）=================
+   詩歌 mp3 放在網站的 music/ 資料夾，music.json 是清單。
+   同源檔案才混得進錄影，也不必請使用者一首一首加。
+   註：GitHub 網頁版「Upload files」會把檔案丟進當前資料夾，很容易全部掉在根目錄，
+   所以抓檔時 music/ 與根目錄兩邊都找，找到哪邊就記住。 */
+const MUSIC_JSON="music.json", MUSIC_DIR="music/";
+let hymnList=null, musicBase=null, hymnTag="", hymnQ="";
+let bgmCredit="";
+async function hymnLoad(){
+  if(hymnList)return hymnList;
+  const r=await fetch(MUSIC_JSON+"?v="+APP_VER,{cache:"no-store"});
+  if(!r.ok)throw new Error("http "+r.status);
+  const d=await r.json();
+  hymnList=Array.isArray(d)?d:((d&&d.songs)||[]);
+  return hymnList;
+}
+function hymnName(sg){return (LG()==="en"&&sg.ne)?sg.ne:LT(sg.n||sg.f||"");}
+async function hymnFetch(sg){
+  const name=encodeURIComponent(sg.f);
+  const tries=(musicBase!==null)?[musicBase]:[MUSIC_DIR,""];
+  let why="";
+  for(const b of tries){
+    const path=b+name;
+    let r;
+    try{r=await fetch(path+"?v="+APP_VER);}catch(e){why="連不上 "+path;continue;}
+    if(!r.ok){why=path+"：HTTP "+r.status;continue;}
+    const blob=await r.blob();
+    if(!blob.size){why=path+" 是空檔";continue;}
+    if(/text\/html/.test(blob.type||"")){why=path+" 抓到的是網頁，不是音檔";continue;}
+    musicBase=b;return blob;
+  }
+  throw new Error(why||"讀取失敗");
+}
+let __hAudio=null,__hPlaying="";
+function hymnAudio(){
+  if(__hAudio)return __hAudio;
+  __hAudio=document.createElement("audio");
+  __hAudio.preload="auto";__hAudio.playsInline=true;
+  ["playsinline","webkit-playsinline"].forEach(a=>__hAudio.setAttribute(a,""));
+  __hAudio.style.cssText="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none";
+  document.body.appendChild(__hAudio);
+  return __hAudio;
+}
+function hymnStop(){
+  try{if(__hAudio)__hAudio.pause();}catch(e){}
+  __hPlaying="";
+  document.querySelectorAll(".hymnplay").forEach(b=>b.textContent="▶");
+}
+async function hymnPlay(f){
+  const sg=(hymnList||[]).find(x=>x.f===f);if(!sg)return;
+  if(__hPlaying===f){hymnStop();return;}
+  hymnStop();
+  try{
+    const blob=await hymnFetch(sg);
+    const a=hymnAudio();
+    if(a.src)try{URL.revokeObjectURL(a.src);}catch(e){}
+    a.src=URL.createObjectURL(blob);
+    await a.play().catch(()=>{});
+    __hPlaying=f;
+    const btn=document.querySelector('.hymnplay[data-f="'+f+'"]');
+    if(btn)btn.textContent="■";
+  }catch(e){logErr("hymnPlay",e);toast("這首讀取失敗，換一首試試");}
+}
+async function useHymn(f){
+  const sg=(hymnList||[]).find(x=>x.f===f);if(!sg)return;
+  toast("正在載入詩歌…");
+  try{
+    bgmBlob=await hymnFetch(sg);
+    bgmName=hymnName(sg);
+    bgmCredit=hymnName(sg)+(sg.no?("　#"+sg.no):"");
+    hymnStop();closeSheet();reRender();toast("已選用詩歌");
+  }catch(e){logErr("useHymn",e);toast("這首讀取失敗，換一首試試");}
+}
 async function openHymnSheet(){
-  await loadHymns();
-  const rows=HYMN_LIST.map(h=>{
-    const has=hymnHas(h.id);
-    return `<div class="hrow">
-      <div class="hmeta">
-        <div class="ht">${h.n}</div>
-        <div class="hs">${h.s}</div>
-      </div>
-      ${has?`<button class="btn ghost sm" onclick="useHymn('${h.id}')">選用</button>
-             <button class="btn ghost sm" onclick="previewHymn('${h.id}')">試聽</button>
-             <button class="btn ghost sm" style="color:var(--red);border-color:var(--red)" onclick="rmHymn('${h.id}')">移除</button>`
-            :`<label class="btn ghost sm" style="cursor:pointer">加入音樂檔
-               <input type="file" style="display:none" onchange="addHymn('${h.id}',this)"></label>`}
-    </div>`;
-  }).join("");
-  const cnt=hymnCache.length;
   sheet("詩歌庫",`
-   <div class="hint">30 首經典聖詩。每首<b>只需加入音樂檔一次</b>，之後就存在這支手機裡，做卡片時直接挑選，不用再翻檔案。</div>
-   <div class="hint">目前已加入 ${cnt} / 30 首。音樂檔的版權屬原出版者，請使用您自己合法取得的檔案。</div>
-   <hr class="sep">
-   <div class="hlist">${rows}</div>`);
+   <div class="hint">30 首詩歌隨 App 一起發佈，選一首就能配進卡片與影片，不必自己找檔案。</div>
+   <div class="row tight" style="margin:10px 0 8px">
+     <input id="hyQ" placeholder="找詩歌，例如：奇異恩典、禱告" style="flex:1;min-width:140px" oninput="hymnQ=this.value;hymnPaint()">
+   </div>
+   <div class="row tight" id="hyTags" style="margin-bottom:8px"></div>
+   <div id="hyList"><div class="muted" style="text-align:center;padding:24px 0">${LT("正在載入詩歌清單…")}</div></div>
+   <div class="hint" style="margin-top:10px">詩歌錄音的版權屬原出版者，請在教會關懷的範圍內使用。</div>`);
+  try{await hymnLoad();}catch(e){
+    logErr("hymnLoad",e);
+    const b=document.getElementById("hyList");
+    if(b)b.innerHTML=`<div class="muted" style="text-align:center;padding:24px 0">${LT("讀不到詩歌清單，請確認 music.json 已上傳")}</div>`;
+    return;
+  }
+  hymnPaint();
 }
-async function addHymn(id,inp){
-  const f=inp&&inp.files&&inp.files[0];if(!f)return;
-  const ok=(f.type&&(f.type.indexOf("audio")===0||f.type.indexOf("video")===0))||AUD_EXT.test(f.name||"");
-  if(!ok){toast("這不是音樂檔，請選 mp3、m4a、wav 等音檔");return;}
-  if(f.size>25*1024*1024){toast("音檔太大（超過 25MB），請選短一點的");return;}
-  const okSave=await putHymn({id:id,blob:f,fname:f.name||"",ts:Date.now()});
-  if(!okSave){toast("詩歌庫存不下了，請先移除幾首");return;}
-  await loadHymns();openHymnSheet();toast("已加入詩歌庫");
+function hymnPaint(){
+  const box=document.getElementById("hyList");
+  const tb=document.getElementById("hyTags");
+  if(!box||!hymnList)return;
+  const tags=[""].concat(Array.from(new Set(hymnList.map(x=>x.tag).filter(Boolean))));
+  if(tb)tb.innerHTML=tags.map(t=>`<button class="chip ${hymnTag===t?"on":""}" onclick="hymnTag='${t}';hymnPaint()">${t||LT("全部")}</button>`).join("");
+  const q=(hymnQ||"").trim().toLowerCase();
+  const list=hymnList.filter(sg=>{
+    if(hymnTag&&(sg.tag||"")!==hymnTag)return false;
+    if(!q)return true;
+    return ((sg.n||"")+" "+(sg.ne||"")+" "+(sg.tag||"")+" "+(sg.no||"")).toLowerCase().indexOf(q)>=0;
+  });
+  box.innerHTML=list.length?list.map(sg=>`
+    <div class="hrow">
+      <button class="hymnplay" data-f="${esc(sg.f)}" onclick="hymnPlay('${esc(sg.f)}')" aria-label="${LT("試聽")}">▶</button>
+      <div class="hmeta">
+        <div class="ht">${esc(hymnName(sg))}</div>
+        <div class="hs">${esc([sg.no?("#"+sg.no):"",LT(sg.tag||""),sg.ne||""].filter(Boolean).join("　·　"))}</div>
+      </div>
+      <button class="btn ghost sm" onclick="useHymn('${esc(sg.f)}')">選用</button>
+    </div>`).join("")
+   :`<div class="muted" style="text-align:center;padding:24px 0">${LT("找不到這首，換個詞試試")}</div>`;
+  a11y(box);
 }
-async function rmHymn(id){
-  if(!confirm(LT("要把這首從詩歌庫移除嗎？")))return;
-  await delHymn(id);await loadHymns();openHymnSheet();toast("已移除");
-}
-async function useHymn(id){
-  await loadHymns();
-  const h=hymnCache.find(x=>x.id===id);
-  if(!h){toast("這首還沒有加入音樂檔");return;}
-  bgmBlob=h.blob;bgmName=hymnMeta(id).n;
-  closeSheet();reRender();toast("已選用詩歌");
-}
-let __hpv=null;
-async function previewHymn(id){
-  await loadHymns();
-  const h=hymnCache.find(x=>x.id===id);if(!h)return;
-  try{if(__hpv){__hpv.pause();URL.revokeObjectURL(__hpv.src);__hpv=null;}}catch(e){}
-  const u=URL.createObjectURL(h.blob);
-  __hpv=new Audio();__hpv.src=u;__hpv.play().catch(()=>{});
-  toast("試聽中…再按一次「試聽」可停止");
-  setTimeout(()=>{try{if(__hpv){__hpv.pause();URL.revokeObjectURL(u);__hpv=null;}}catch(e){}},20000);
-}
-
-/* ================= 免費圖庫（維基共享資源）=================
-   使用 Wikimedia Commons 的公開 API：完全免費、不需要金鑰、允許跨網域，
-   圖片皆為自由授權（多數需標示作者，介面上會顯示）。 */
+/* ================= 免費圖庫（Pexels）=================
+   與 321互動聖經 使用同一把免費金鑰。圖片可免費使用，介面上仍標示攝影者。 */
+const PEXELS_KEY="ofCQ7i2mqaEddrACvvmzdgfrpZ90Z8gVOI9D6vYVf7uxWXCCtzQbj9yR";
+const PX_API="https://api.pexels.com/v1/", PX_PER=24;
 const PX_CHIPS=["晨曦","日落","山","海","湖","草原","花","天空","星空","雲",
                 "森林","小路","溪流","麥田","雨","雪","光","十字架","教堂","書桌"];
 const PX_EN={"晨曦":"sunrise","日落":"sunset","山":"mountain landscape","海":"sea ocean",
- "湖":"lake calm","草原":"meadow","花":"flower closeup","天空":"sky","星空":"night sky stars",
+ "湖":"calm lake","草原":"meadow","花":"flower closeup","天空":"sky","星空":"starry night",
  "雲":"clouds","森林":"forest","小路":"path trail","溪流":"stream creek","麥田":"wheat field",
  "雨":"rain window","雪":"snow winter","光":"sunbeam light","十字架":"cross silhouette",
  "教堂":"church interior","書桌":"desk bible"};
-let pxBusy=false,pxHits=[];
+let pxBusy=false,pxHits=[],pxPage=1,pxQ="";
+function pxOrient(){return (curSize==="w")?"landscape":(curSize==="s"?"square":"portrait");}
 function openPxSheet(){
+  pxHits=[];pxPage=1;
   sheet("免費圖庫",`
-   <div class="hint">圖片來自維基共享資源，皆為自由授權、可免費使用。選一張就會直接套用到卡片上。</div>
+   <div class="hint">圖片來自 Pexels，皆可免費使用。選一張就會直接套用到卡片上；方向會跟著您選的卡片比例。</div>
    <div class="row tight" style="margin:10px 0 6px">
      <input id="pxq" placeholder="輸入想找的景物，例如：晨曦、海邊" style="flex:1;min-width:140px">
      <button class="btn sm" onclick="pxSearch()">搜尋</button>
@@ -1868,50 +1891,56 @@ function openPxSheet(){
    <div class="row tight" style="margin-bottom:10px">
      ${PX_CHIPS.map(c=>`<button class="chip" onclick="pxSearch('${c}')">${c}</button>`).join("")}
    </div>
-   <div id="pxgrid" class="pxgrid"></div>`);
+   <div id="pxgrid" class="pxgrid"></div>
+   <button class="btn ghost wide" id="pxMore" style="margin-top:10px;display:none" onclick="pxSearch(pxQ,1)">再多看一些</button>`);
   pxSearch("晨曦");
 }
-async function pxSearch(q){
+async function pxSearch(q,more){
   if(pxBusy)return;
   const box=document.getElementById("pxgrid");
   const inp=document.getElementById("pxq");
-  let term=q||(inp?inp.value.trim():"");
-  if(!term)return;
+  let term=(q!==undefined&&q!==null&&q!=="")?q:(inp?inp.value.trim():"");
+  if(!term)term="晨曦";
   if(inp&&q)inp.value=q;
-  pxBusy=true;
-  if(box)box.innerHTML=`<div class="muted" style="grid-column:1/-1;text-align:center;padding:24px 0">${LT("正在找圖…")}</div>`;
+  if(more){pxPage++;}else{pxPage=1;pxHits=[];}
+  pxQ=term;pxBusy=true;
+  if(box&&!more)box.innerHTML=`<div class="muted" style="grid-column:1/-1;text-align:center;padding:24px 0">${LT("正在找圖…")}</div>`;
   const en=PX_EN[term]||term;
   try{
-    const url="https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*"
-      +"&generator=search&gsrnamespace=6&gsrlimit=24"
-      +"&gsrsearch="+encodeURIComponent("filetype:bitmap -svg "+en)
-      +"&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=420";
-    const res=await fetch(url,{cache:"no-store"});
-    const j=await res.json();
-    const pages=(j&&j.query&&j.query.pages)?Object.values(j.query.pages):[];
-    pxHits=pages.map(pg=>{
-      const ii=(pg.imageinfo&&pg.imageinfo[0])||null;
-      if(!ii)return null;
-      const em=ii.extmetadata||{};
-      const author=((em.Artist&&em.Artist.value)||"").replace(/<[^>]*>/g,"").slice(0,60);
-      const lic=((em.LicenseShortName&&em.LicenseShortName.value)||"").slice(0,30);
-      return {thumb:ii.thumburl||ii.url,full:ii.url,title:(pg.title||"").replace(/^File:/,""),author:author,lic:lic};
-    }).filter(Boolean);
-    if(!pxHits.length){
-      if(box)box.innerHTML=`<div class="muted" style="grid-column:1/-1;text-align:center;padding:24px 0">${LT("找不到合適的圖，換個詞試試")}</div>`;
-    }else if(box){
-      box.innerHTML=pxHits.map((h,i)=>`
-        <button class="pxcell" onclick="pxPick(${i})" aria-label="${esc(h.title)}">
-          <img src="${esc(h.thumb)}" alt="${esc(h.title)}" loading="lazy">
-          <span>${esc(h.author||h.lic||"")}</span>
-        </button>`).join("");
-      a11y(box);
-    }
+    const url=PX_API+"search?query="+encodeURIComponent(en)
+      +"&orientation="+pxOrient()+"&per_page="+PX_PER+"&page="+pxPage;
+    const r=await fetch(url,{headers:{Authorization:PEXELS_KEY}});
+    if(!r.ok)throw new Error("http "+r.status);
+    const j=await r.json();
+    const got=(j&&j.photos)||[];
+    got.forEach(ph=>pxHits.push({
+      thumb:(ph.src&&(ph.src.large||ph.src.medium))||"",
+      full:(ph.src&&(ph.src.large2x||ph.src.large))||"",
+      author:ph.photographer||"",
+      title:ph.alt||""
+    }));
+    pxPaint(got.length>=PX_PER);
   }catch(e){
     logErr("px",e);
-    if(box)box.innerHTML=`<div class="muted" style="grid-column:1/-1;text-align:center;padding:24px 0">${LT("目前沒有網路，圖庫暫時無法使用")}</div>`;
+    if(box&&!more)box.innerHTML=`<div class="muted" style="grid-column:1/-1;text-align:center;padding:24px 0">${LT("圖庫暫時連不上，請確認網路後再試")}</div>`;
   }
   pxBusy=false;
+}
+function pxPaint(hasMore){
+  const box=document.getElementById("pxgrid");
+  const more=document.getElementById("pxMore");
+  if(more)more.style.display=hasMore?"":"none";
+  if(!box)return;
+  if(!pxHits.length){
+    box.innerHTML=`<div class="muted" style="grid-column:1/-1;text-align:center;padding:24px 0">${LT("找不到合適的圖，換個詞試試")}</div>`;
+    return;
+  }
+  box.innerHTML=pxHits.map((h,i)=>`
+    <button class="pxcell" onclick="pxPick(${i})" aria-label="${esc(h.title||h.author)}">
+      <img src="${esc(h.thumb)}" alt="${esc(h.title)}" loading="lazy">
+      <span>${esc(h.author)}</span>
+    </button>`).join("");
+  a11y(box);
 }
 function pxPick(i){
   const h=pxHits[i];if(!h)return;
@@ -1919,13 +1948,13 @@ function pxPick(i){
   const im=new Image();
   im.crossOrigin="anonymous";
   im.onload=()=>{
-    photoImg=im;photoMode="bg";photoCredit=(h.author||"")+(h.lic?("　"+h.lic):"");
+    photoImg=im;photoMode="bg";
+    photoCredit=(h.author?h.author+"／":"")+"Pexels";
     closeSheet();reRender();toast("已套用圖庫相片");
   };
   im.onerror=()=>{logErr("pximg",h.full);toast("這張讀取失敗，換一張試試");};
-  im.src=h.thumb;
+  im.src=h.full||h.thumb;
 }
-
 /* ================= 自選經文做圖 =================
    貼上任何一段經文（或自己想寫的話），直接做成卡片。 */
 let cvV="",cvR="",cvW="";
@@ -1939,6 +1968,11 @@ function cvOpen(){
    <label class="f">想說的話（可留空）</label>
    <textarea id="cv_w" rows="5" placeholder="可用 {稱呼} 代表收卡人，送出時自動換成真實姓名" oninput="cvW=this.value">${esc(cvW)}</textarea>
    <div class="hint">可用代碼：{稱呼}{姓名}{配偶}{家人}{團體}{署名}</div>
+   <div class="row tight" style="margin-top:10px">
+     <button class="btn gold sm" id="blessBtn" onclick="blessWrite()">✍️ 請AI小智寫祝福</button>
+     <button class="btn ghost sm" onclick="blessTweakSheet()">✨ 改一改</button>
+   </div>
+   <div class="hint">可以自己寫，也可以請AI小智照這節經文寫一段關懷祝福；寫好之後還能再改一改。</div>
    <hr class="sep">
    <button class="btn wide" onclick="cvMake()">做成圖卡</button>
    <button class="btn wide ghost" style="margin-top:9px" onclick="cvRec()">錄音做卡</button>`);
@@ -2175,6 +2209,37 @@ var EN_RULES=[
  ["已自動分出經文與出處","Verse and reference separated automatically"],
  ["自選經文","Your own verse"],
  ["目前已加入","Added so far: "],
+ ["30 首詩歌隨 App 一起發佈，選一首就能配進卡片與影片，不必自己找檔案。","30 hymns ship with the app — pick one and it is mixed into your card or video, no file hunting."],
+ ["正在載入詩歌清單…","Loading the hymn list…"],
+ ["讀不到詩歌清單，請確認 music.json 已上傳","Could not load the hymn list — please check that music.json has been uploaded"],
+ ["詩歌錄音的版權屬原出版者，請在教會關懷的範圍內使用。","Hymn recordings remain the copyright of their publishers; please use them within church care ministry."],
+ ["找詩歌，例如：奇異恩典、禱告","Find a hymn, e.g. Amazing Grace, prayer"],
+ ["找不到這首，換個詞試試","Not found — try another word"],
+ ["正在載入詩歌…","Loading the hymn…"],["已選用詩歌","Hymn selected"],
+ ["這首讀取失敗，換一首試試","That hymn could not be loaded — try another"],
+ ["讚美","Praise"],["信靠","Trust"],["恩典","Grace"],["渴慕","Longing"],["救恩","Salvation"],
+ ["安慰","Comfort"],["成聖","Holiness"],["禱告","Prayer"],["奉獻","Surrender"],["感恩","Thanksgiving"],["復興","Revival"],
+ ["圖片來自 Pexels，皆可免費使用。選一張就會直接套用到卡片上；方向會跟著您選的卡片比例。","Photos come from Pexels and are free to use. Tap one to apply it; the orientation follows your chosen card ratio."],
+ ["圖庫暫時連不上，請確認網路後再試","The image library is unreachable — please check your connection"],
+ ["再多看一些","Show more"],
+ ["✍️ 請AI小智寫祝福","✍️ Ask AI Sage to write the blessing"],
+ ["請AI小智寫祝福","Ask AI Sage to write the blessing"],
+ ["AI小智寫作中…","AI Sage is writing…"],
+ ["AI小智寫好了，可以再改一改","AI Sage has written it — you can still revise"],
+ ["可以自己寫，也可以請AI小智照這節經文寫一段關懷祝福；寫好之後還能再改一改。","Write it yourself, or let AI Sage write a blessing from this verse — you can revise it afterwards."],
+ ["✨ 改一改","✨ Revise"],["要怎麼改？","How should it change?"],
+ ["或者自己說","Or say it yourself"],["例：加一句為他的工作禱告","e.g. add a line praying for their work"],
+ ["改好給我","Rewrite it"],["改好了","Rewritten"],["AI小智修改中…","AI Sage is rewriting…"],
+ ["先自己寫一段，或請AI小智寫一段再來改","Write something first, or ask AI Sage to write it, then revise"],
+ ["請說一下要怎麼改","Please say how it should change"],
+ ["短一點","Shorter"],["長一點","Longer"],["更溫暖","Warmer"],["口語一點","More everyday"],
+ ["更有力","Stronger"],["換個說法","Say it another way"],["加一句為他禱告","Add a line praying for them"],
+ ["原本的祝福：","The current blessing: "],["請這樣改：","Change it like this: "],
+ ["這段話是寫給","This is written for "],
+ ["的，請直接對他說話，但不要再寫一次稱呼。"," — speak directly to them, but do not repeat the greeting."],
+ ["AI小智暫時連不上線","AI Sage cannot connect at the moment"],
+ ["回覆是空的","the reply was empty"],["等候得有點久，請稍後再試","it took too long, please try again"],
+ ["目前沒有網路","there is no network"],
  ["音樂音量","Music volume"],["換一首","Change track"],["移除音樂","Remove music"],
  ["小聲","Soft"],["適中","Medium"],["明顯","Loud"],
  ["這不是音樂檔，請選 mp3、m4a、wav 等音檔","That is not an audio file. Please choose an mp3, m4a or wav file."],
@@ -3867,7 +3932,7 @@ function vSet(){
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
       <button class="btn wide ghost" style="margin-top:9px" onclick="showErrLog()">查看錯誤紀錄</button>
-      <div class="hint">版本 v3.4.0（三語版）</div>
+      <div class="hint">版本 v3.5.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
@@ -3970,7 +4035,7 @@ function expICS(){
    每次改版：index.html 的 APP_VER、version.json、sw.js 的 CACHE 版號要一起跳。
    App 開啟時與每次切回前景時（最多每 5 分鐘一次）向伺服器問一次版本，
    有新版就在使用者不忙的時候自動換版；正在錄影或打字時只提示，不打斷。 */
-const APP_VER="3.4.0";
+const APP_VER="3.5.0";
 let __lastChk=0,__upd=false;
 function appBusy(){
   if(mr&&mr.state==="recording")return true;
@@ -4122,6 +4187,105 @@ function xzSheet(){
    <div id="xz_out"></div>`);
   if(xz.result)xzRenderResult();
   if(xz.err)$("#xz_out").innerHTML=`<div class="card" style="border-color:var(--red);margin-top:14px"><div class="muted">${esc(xz.err)}</div></div>`;
+}
+/* 問一次 AI小智，回 {out, why}——寫祝福與改一改共用（照 321互動聖經 的作法） */
+async function aiOnce(sys,ask){
+  if(S.set.ai===0)return {out:"",why:LT("AI小智目前是關閉的，可到「設定 → AI小智」開啟")};
+  const ctrl=(typeof AbortController!=="undefined")?new AbortController():null;
+  const timer=ctrl?setTimeout(()=>{try{ctrl.abort();}catch(_){}},35000):null;
+  let out="",why="";
+  try{
+    if(navigator.onLine===false)throw new Error("offline");
+    const r=await fetch(XZ_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},
+      signal:ctrl?ctrl.signal:undefined,
+      body:JSON.stringify({model:XZ_MODEL,max_tokens:1000,system:sys,
+        messages:[{role:"user",content:ask}]})});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const d=await r.json();
+    out=(d.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("\n").trim();
+    if(!out)why=LT("回覆是空的");
+  }catch(e){
+    why=(e&&e.name==="AbortError")?LT("等候得有點久，請稍後再試")
+       :(e&&e.message==="offline")?LT("目前沒有網路")
+       :((e&&e.message)||"network");
+  }finally{if(timer)clearTimeout(timer);}
+  return {out:out?out.replace(/[*#>`]/g,"").replace(/^「|」$/g,"").trim():"",why:why};
+}
+/* ---- 自選經文：請AI小智照這節經文寫一段關懷祝福 ---- */
+let blessBusy=false;
+function blessSys(){
+  const g=LG();
+  if(g==="en")return "You are AI Sage, a spiritual companion from Kingdom 321 Fellowship. From the verse the user gives you, write a short, warm word of encouragement for a brother or sister. First name in one or two sentences what this verse shows of God's heart, then one sentence that touches ordinary daily life, then close with a blessing. Three to four sentences, under 60 words. Warm and spoken, never preachy. No headings, no bullet points, no quotation marks, and do not quote the verse again. If it reads as a prayer, close it with \"in the name of the Lord Jesus we pray, Amen\".";
+  if(g==="zh-Hans")return "你是「AI小智」，国度321空中团契的属灵同伴。请照使用者给的这节经文，写一段温暖的关怀祝福，送给弟兄姊妹。要求：先用一两句点出这节经文里神的心意，再写一句贴近生活的祝福，最后用一句祝福收尾。总共三到四句、120 字以内，口语、温暖、不说教，不要标题、不要条列、不要引号、不要再抄一次经文。若结尾写成祷告，要用「奉主耶稣的名祷告，阿们」，不要用「奉耶稣的名求」。";
+  return "你是「AI小智」，國度321空中團契的屬靈同伴。請照使用者給的這節經文，寫一段溫暖的關懷祝福，送給弟兄姊妹。要求：先用一兩句點出這節經文裡神的心意，再寫一句貼近生活的祝福，最後用一句祝福收尾。總共三到四句、120 字以內，口語、溫暖、不說教，不要標題、不要條列、不要引號、不要再抄一次經文。若結尾寫成禱告，要用「奉主耶穌的名禱告，阿們」，不要用「奉耶穌的名求」。";
+}
+/* 寫給誰：姓名一律以代號送出，回來才換回真名 */
+function blessWho(){
+  const p=S.people.find(x=>x.id===curPid);
+  if(!p)return {line:"",real:""};
+  return {line:"\n"+LT("這段話是寫給")+"「"+NAME_TOKEN+(p.title||"")+"」"+LT("的，請直接對他說話，但不要再寫一次稱呼。"),
+          real:p.name+(p.title||"")};
+}
+async function blessWrite(){
+  if(blessBusy)return;
+  const v=(document.getElementById("cv_v")||{}).value||"";
+  const r=(document.getElementById("cv_r")||{}).value||"";
+  if(!v.trim()){toast("請先貼上或輸入經文");return;}
+  cvV=v.trim();cvR=r.trim();
+  blessBusy=true;
+  const btn=document.getElementById("blessBtn");
+  if(btn){btn.disabled=true;btn.textContent=LT("AI小智寫作中…");}
+  const w=blessWho();
+  const ask=LT("經文：")+cvV+(cvR?"（"+cvR+"）":"")+w.line;
+  const rr=await aiOnce(blessSys(),ask);
+  blessBusy=false;
+  if(btn){btn.disabled=false;btn.textContent="✍️ "+LT("請AI小智寫祝福");}
+  if(rr.out){
+    let out=rr.out;
+    if(w.real)out=out.split(NAME_TOKEN+((S.people.find(x=>x.id===curPid)||{}).title||"")).join(w.real).split(NAME_TOKEN).join(w.real);
+    const ta=document.getElementById("cv_w");
+    if(ta)ta.value=out;
+    cvW=out;
+    toast("AI小智寫好了，可以再改一改");
+  }else{
+    toast(LT("AI小智暫時連不上線")+(rr.why?("（"+rr.why+"）"):""));
+  }
+}
+/* ---- 改一改：照您說的方式請AI小智重寫目前這段話 ---- */
+function blessTweakSheet(){
+  const cur=(document.getElementById("cv_w")||{}).value||cvW;
+  if(!cur.trim()){toast("先自己寫一段，或請AI小智寫一段再來改");return;}
+  __cvW=cur;
+  const picks=["短一點","長一點","更溫暖","口語一點","更有力","換個說法","加一句為他禱告"];
+  sheet("要怎麼改？",`
+   <div class="row tight">
+     ${picks.map(x=>`<button class="chip" onclick="blessTweak('${x}')">${x}</button>`).join("")}
+   </div>
+   <label class="f">或者自己說</label>
+   <input id="tw_i" placeholder="例：加一句為他的工作禱告">
+   <button class="btn wide" style="margin-top:10px" onclick="blessTweak()">改好給我</button>`);
+}
+let __cvW="";
+async function blessTweak(instr){
+  if(blessBusy)return;
+  const ins=instr||((document.getElementById("tw_i")||{}).value||"").trim();
+  if(!ins){toast("請說一下要怎麼改");return;}
+  blessBusy=true;
+  toast("AI小智修改中…");
+  const g=LG();
+  const sys=(g==="en")
+    ? "You are AI Sage from Kingdom 321 Fellowship. Rewrite the short blessing the user gives you, following their instruction. Return ONLY the rewritten text — no explanation, no heading, no bullet points, no quotation marks, and do not quote the verse again. Keep it warm and spoken, never preachy."
+    :(g==="zh-Hans")
+    ? "你是「AI小智」，国度321空中团契的属灵同伴。请照使用者的要求，修改他给你的这段祝福。只回传改好的内文本身——不要解释、不要标题、不要条列、不要引号、不要再抄一次经文。保持温暖、口语、不说教。"
+    : "你是「AI小智」，國度321空中團契的屬靈同伴。請照使用者的要求，修改他給你的這段祝福。只回傳改好的內文本身——不要解釋、不要標題、不要條列、不要引號、不要再抄一次經文。保持溫暖、口語、不說教。";
+  const ask=LT("原本的祝福：")+__cvW+"\n"+LT("請這樣改：")+ins;
+  const rr=await aiOnce(sys,ask);
+  blessBusy=false;
+  if(rr.out){
+    cvW=rr.out;closeSheet();cvOpen();
+    setTimeout(()=>{const ta=document.getElementById("cv_w");if(ta)ta.value=cvW;},60);
+    toast("改好了");
+  }else toast(LT("AI小智暫時連不上線"));
 }
 async function xzGenerate(){
   xz.name=($("#xz_name")||{}).value||xz.name;
