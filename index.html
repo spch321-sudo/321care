@@ -1957,10 +1957,20 @@ function pxPick(i){
 }
 /* ================= 自選經文做圖 =================
    貼上任何一段經文（或自己想寫的話），直接做成卡片。 */
-let cvV="",cvR="",cvW="";
+let cvV="",cvR="",cvW="",cvTo="",cvGrp="",cvSig="";
 function cvOpen(){
+  const p0=S.people.find(x=>x.id===curPid);
   sheet("自選經文做圖",`
    <div class="hint">把任何一段經文貼進來，就能做成卡片。貼上時若帶著出處（例如「詩篇 46:10」），會自動幫您分開。</div>
+
+   <label class="f">送給誰</label>
+   <select id="cv_pid" onchange="cvPick(this.value)">
+     <option value="">— 自己填稱呼 —</option>
+     ${S.people.map(x=>`<option value="${x.id}" ${x.id===curPid?"selected":""}>${esc(x.name+(x.title||""))}</option>`).join("")}
+   </select>
+   <input id="cv_to" value="${esc(cvTo||(p0?p0.name+(p0.title||""):""))}" placeholder="例：美慧姊妹、親愛的弟兄姊妹" oninput="cvTo=this.value">
+   <div class="hint">這就是卡片上出現的稱呼。從名冊挑一位會自動帶入，也可以直接自己寫。</div>
+
    <label class="f">經文</label>
    <textarea id="cv_v" rows="4" placeholder="把經文貼在這裡" oninput="cvSmart(this.value)">${esc(cvV)}</textarea>
    <label class="f">出處</label>
@@ -1968,6 +1978,13 @@ function cvOpen(){
    <label class="f">想說的話（可留空）</label>
    <textarea id="cv_w" rows="5" placeholder="可用 {稱呼} 代表收卡人，送出時自動換成真實姓名" oninput="cvW=this.value">${esc(cvW)}</textarea>
    <div class="hint">可用代碼：{稱呼}{姓名}{配偶}{家人}{團體}{署名}</div>
+
+   <label class="f">團體名稱（卡片最上方）</label>
+   <input id="cv_grp" value="${esc(cvGrp||S.set.group||"")}" placeholder="例：貴格會新埔教會" oninput="cvGrp=this.value">
+   <label class="f">署名（卡片最下方）</label>
+   <input id="cv_sig" value="${esc(cvSig||S.set.signer||"")}" placeholder="例：愛你的牧師、師母" oninput="cvSig=this.value">
+   <div class="hint">只影響這一張卡片，不會改到「設定」裡的預設值。留空就用預設值。</div>
+
    <div class="row tight" style="margin-top:10px">
      <button class="btn gold sm" id="blessBtn" onclick="blessWrite()">✍️ 請AI小智寫祝福</button>
      <button class="btn ghost sm" onclick="blessTweakSheet()">✨ 改一改</button>
@@ -1991,11 +2008,20 @@ function cvSmart(v){
     }
   }
 }
+/* 從名冊挑一位時，把稱呼帶進來 */
+function cvPick(id){
+  curPid=id;
+  const p=S.people.find(x=>x.id===id);
+  const box=document.getElementById("cv_to");
+  if(box){box.value=p?(p.name+(p.title||"")):"";cvTo=box.value;}
+}
 function cvGrab(){
   const g=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
   cvV=g("cv_v");cvR=g("cv_r");cvW=g("cv_w");
+  cvTo=g("cv_to");cvGrp=g("cv_grp");cvSig=g("cv_sig");
   if(!cvV){toast("請先貼上或輸入經文");return null;}
-  return {v:cvV,r:cvR,w:cvW||"{稱呼}平安！願這節經文成為您今天的力量。",b:BL()[0]};
+  return {v:cvV,r:cvR,w:cvW||"{稱呼}平安！願這節經文成為您今天的力量。",b:BL()[0],
+          to:cvTo,grp:cvGrp,sig:cvSig};
 }
 function cvMake(){
   const c=cvGrab();if(!c)return;
@@ -2240,6 +2266,14 @@ var EN_RULES=[
  ["AI小智暫時連不上線","AI Sage cannot connect at the moment"],
  ["回覆是空的","the reply was empty"],["等候得有點久，請稍後再試","it took too long, please try again"],
  ["目前沒有網路","there is no network"],
+ ["送給誰","Who is it for?"],["— 自己填稱呼 —","— Type the name yourself —"],
+ ["例：美慧姊妹、親愛的弟兄姊妹","e.g. Sister Mei-hui, or Dear brother or sister"],
+ ["這就是卡片上出現的稱呼。從名冊挑一位會自動帶入，也可以直接自己寫。","This is the greeting printed on the card. Pick someone from the directory, or type it yourself."],
+ ["團體名稱（卡片最上方）","Group name (top of the card)"],
+ ["署名（卡片最下方）","Signature (bottom of the card)"],
+ ["例：貴格會新埔教會","e.g. Xinpu Quaker Church"],
+ ["例：愛你的牧師、師母","e.g. With love, your pastor"],
+ ["只影響這一張卡片，不會改到「設定」裡的預設值。留空就用預設值。","This applies to this card only and does not change the defaults in Settings. Leave blank to use the defaults."],
  ["音樂音量","Music volume"],["換一首","Change track"],["移除音樂","Remove music"],
  ["小聲","Soft"],["適中","Medium"],["明顯","Loud"],
  ["這不是音樂檔，請選 mp3、m4a、wav 等音檔","That is not an audio file. Please choose an mp3, m4a or wav file."],
@@ -2571,23 +2605,31 @@ function gapDays(pid){const d=lastCare(pid);if(!d)return 999;return Math.round((
 function light(pid){const g=gapDays(pid);return g>=90?"red":g>=45?"amber":"green";}
 
 /* ================= 合併欄位 ================= */
-function merge(txt,p){
-  const set=S.set;
+/* 卡片可自帶團體名、稱呼與署名；沒帶就用「設定」裡的預設值 */
+function cGroup(c){return String((c&&c.grp)||S.set.group||"").trim();}
+function cSigner(c){return String((c&&c.sig)||S.set.signer||"").trim();}
+function cTo(c,p){
+  const own=String((c&&c.to)||"").trim();
+  if(own)return own;
+  if(p)return p.title?p.name+p.title:p.name;
+  return isEN()?"dear brother or sister":"親愛的弟兄姊妹";
+}
+function merge(txt,p,c){
   const sep=isEN()?", ":"、";
   const fam=p&&p.fam&&p.fam.length?p.fam.map(f=>f.n).filter(Boolean).join(sep):(isEN()?"your family":"家人");
   return (txt||"")
-   .replace(/\{稱呼\}/g,p?(p.title?p.name+p.title:p.name):(isEN()?"dear brother or sister":"親愛的弟兄姊妹"))
-   .replace(/\{姓名\}/g,p?p.name:"")
+   .replace(/\{稱呼\}/g,cTo(c,p))
+   .replace(/\{姓名\}/g,p?p.name:String((c&&c.to)||"").trim())
    .replace(/\{配偶\}/g,p&&p.spouse?p.spouse:(isEN()?"your spouse":"另一半"))
    .replace(/\{家人\}/g,fam)
-   .replace(/\{團體\}/g,set.group||"")
-   .replace(/\{署名\}/g,set.signer||"");
+   .replace(/\{團體\}/g,cGroup(c))
+   .replace(/\{署名\}/g,cSigner(c));
 }
 function cardText(c,p){
-  const sig=LT((S.set.signer||"").trim());
+  const sig=LT(cSigner(c));
   const q=isEN()?["\u201c","\u201d"]:["\u300c","\u300d"];
   const sg=sig?(isEN()?"\u2014 "+sig:sig+" 敬上"):"";
-  return `${q[0]}${c.v}${q[1]}\n\u2014\u2014 ${c.r}\n\n${merge(c.w,p)}\n\n${c.b||BL()[0]}\n\n${sg}`.trim();
+  return `${q[0]}${c.v}${q[1]}\n\u2014\u2014 ${c.r}\n\n${merge(c.w,p,c)}\n\n${c.b||BL()[0]}\n\n${sg}`.trim();
 }
 
 /* ================= Toast / Sheet ================= */
@@ -2879,7 +2921,7 @@ function vCardList(){
     ${sc.cards.map((c,i)=>`
       <div class="vcard">
         <div class="vs"><div class="vt">${QO()}${esc(c.v)}${QC()}</div><div class="vr">${esc(c.r)}</div></div>
-        <div class="vb">${esc(merge(c.w,p))}</div>
+        <div class="vb">${esc(merge(c.w,p,c))}</div>
         <div id="pv${i}" class="cprev"></div>
         <div class="va">
           <button class="btn sm" onclick="makeImg('${sc.id}',${i})">做成圖卡</button>
@@ -3134,7 +3176,7 @@ function drawCard(cv,c,p,W,H){
   /* --- 團體名（固定在頂端） --- */
   const grpSz=Math.round(27*FT), refSz=Math.round(29*FT), blSz=Math.round(32*FT), sigSz=Math.round(26*FT);
   ctx.textAlign="center";ctx.fillStyle=subDeep;ctx.font=`600 ${grpSz}px ${sans}`;
-  const grp=LT((S.set.group||"").trim());
+  const grp=LT(cGroup(c));
   const grpY=pad+Math.round(40*F);
   if(grp){
     const gw=ctx.measureText(grp).width;
@@ -3158,7 +3200,7 @@ function drawCard(cv,c,p,W,H){
   while(true){ctx.font=`600 ${vs}px ${serif}`;vl=wrap(ctx,QO()+cV+QC(),iw);
     if(vl.length<=6||vs<=Math.round(30*F))break;vs-=Math.round(3*F);}
 
-  const bodyTxt=LT(merge(c.w,p));
+  const bodyTxt=LT(merge(c.w,p,c));
   const fixed=vs*.9+vl.length*vs*1.55+Math.round(62*F)+Math.round(84*F);
   let bs=Math.round(40*FB),bl;
   while(true){ctx.font=`${bs}px ${sans}`;bl=wrap(ctx,bodyTxt,iw);
@@ -3211,7 +3253,7 @@ function drawCard(cv,c,p,W,H){
   const blTxt=cB;
   fitFont(blTxt,blSz,"600",serif);
   ctx.fillText(blTxt,cxT,H-pad*.72-Math.round(96*F)-lift);
-  const sig=LT((S.set.signer||"").trim());
+  const sig=LT(cSigner(c));
   if(sig){
     const sigTxt=sig+(isEN()?"":"　敬上");
     ctx.fillStyle=subDeep;fitFont(sigTxt,sigSz,"600",sans);
@@ -3646,7 +3688,7 @@ async function musicRec(){
     blob=await fixVideoBlob(blob,type);
     await putRec({id:uid(),ts:Date.now(),blob,mime:blob.type||type,kind:"video",dur:recSec,pid:pending.pid,
       sceneId:pending.sid,sceneName:pendName(),cardIdx:pending.i,
-      v:c.v,r:c.r,w:merge(c.w,p),t:c.t,b:c.b});
+      v:c.v,r:c.r,w:merge(c.w,p,c),t:c.t,b:c.b});
     if(pending.pid)markCared(pending.pid,pendName());
     mr=null;await vRec();toast("影片做好了！可以分享到 LINE");
     setTimeout(()=>{const el=[...document.querySelectorAll(".sec-t")].find(x=>x.textContent.indexOf("已完成的作品")>=0);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},250);
@@ -3748,7 +3790,7 @@ async function toggleRec(){
     if(kind==="video")blob=await fixVideoBlob(blob,type);
     await putRec({id:uid(),ts:Date.now(),blob,mime:blob.type||type,kind,dur:recSec,pid:pending.pid,
       sceneId:pending.sid,sceneName:pendName(),cardIdx:pending.i,
-      v:c.v,r:c.r,w:merge(c.w,p),t:c.t,b:c.b});
+      v:c.v,r:c.r,w:merge(c.w,p,c),t:c.t,b:c.b});
     if(pending.pid)markCared(pending.pid,pendName());
     mr=null;await vRec();toast(kind==="video"?"影片做好了！可以分享到 LINE":"錄好了！可以播放或分享");
     setTimeout(()=>{const el=[...document.querySelectorAll(".sec-t")].find(x=>x.textContent.indexOf("已完成的作品")>=0);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},250);
@@ -3932,7 +3974,7 @@ function vSet(){
       <hr class="sep">
       <button class="btn wide ghost" onclick="forceUpdate()">強制更新到最新版</button>
       <button class="btn wide ghost" style="margin-top:9px" onclick="showErrLog()">查看錯誤紀錄</button>
-      <div class="hint">版本 v3.5.0（三語版）</div>
+      <div class="hint">版本 v3.6.0（三語版）</div>
     </div>
     <div style="height:14px"></div>
   </div>`;
@@ -4035,7 +4077,7 @@ function expICS(){
    每次改版：index.html 的 APP_VER、version.json、sw.js 的 CACHE 版號要一起跳。
    App 開啟時與每次切回前景時（最多每 5 分鐘一次）向伺服器問一次版本，
    有新版就在使用者不忙的時候自動換版；正在錄影或打字時只提示，不打斷。 */
-const APP_VER="3.5.0";
+const APP_VER="3.6.0";
 let __lastChk=0,__upd=false;
 function appBusy(){
   if(mr&&mr.state==="recording")return true;
@@ -4222,9 +4264,11 @@ function blessSys(){
 /* 寫給誰：姓名一律以代號送出，回來才換回真名 */
 function blessWho(){
   const p=S.people.find(x=>x.id===curPid);
-  if(!p)return {line:"",real:""};
-  return {line:"\n"+LT("這段話是寫給")+"「"+NAME_TOKEN+(p.title||"")+"」"+LT("的，請直接對他說話，但不要再寫一次稱呼。"),
-          real:p.name+(p.title||"")};
+  const own=((document.getElementById("cv_to")||{}).value||cvTo||"").trim();
+  const real=own||(p?(p.name+(p.title||"")):"");
+  if(!real)return {line:"",real:""};
+  return {line:"\n"+LT("這段話是寫給")+"「"+NAME_TOKEN+"」"+LT("的，請直接對他說話，但不要再寫一次稱呼。"),
+          real:real};
 }
 async function blessWrite(){
   if(blessBusy)return;
@@ -4242,7 +4286,7 @@ async function blessWrite(){
   if(btn){btn.disabled=false;btn.textContent="✍️ "+LT("請AI小智寫祝福");}
   if(rr.out){
     let out=rr.out;
-    if(w.real)out=out.split(NAME_TOKEN+((S.people.find(x=>x.id===curPid)||{}).title||"")).join(w.real).split(NAME_TOKEN).join(w.real);
+    if(w.real)out=out.split(NAME_TOKEN).join(w.real);
     const ta=document.getElementById("cv_w");
     if(ta)ta.value=out;
     cvW=out;
