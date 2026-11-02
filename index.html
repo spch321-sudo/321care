@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
+<head><script>(function(){try{var q=location.search,m=q.match(/[?&]join=([A-Za-z0-9]{6})/);if(m){sessionStorage.setItem('cr_j',JSON.stringify({j:m[1],s:/[?&]screen=1/.test(q)?1:0,t:Date.now()}));}else{var o=JSON.parse(sessionStorage.getItem('cr_j')||'null');if(o&&Date.now()-o.t<20000){history.replaceState(null,'',location.pathname+'?join='+o.j+(o.s?'&screen=1':'')+location.hash);}}if(/[?&]screen=1/.test(location.search))window.CR_SCREEN=true;}catch(e){}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
 <title>321愛的關懷 ｜ 國度321空中團契</title>
@@ -4077,9 +4077,10 @@ function expICS(){
    每次改版：index.html 的 APP_VER、version.json、sw.js 的 CACHE 版號要一起跳。
    App 開啟時與每次切回前景時（最多每 5 分鐘一次）向伺服器問一次版本，
    有新版就在使用者不忙的時候自動換版；正在錄影或打字時只提示，不打斷。 */
-const APP_VER="3.6.2";
+const APP_VER="3.7.0";
 let __lastChk=0,__upd=false;
 function appBusy(){
+  if(window.CR&&CR.on())return true;
   if(mr&&mr.state==="recording")return true;
   const sh=document.getElementById("sheet");
   if(sh&&sh.classList.contains("on"))return true;
@@ -7366,5 +7367,6 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
   window.VPICK321 = { pick: pick, card: card, lang: lang, detect: detect, refs: function (t) { return toc().then(function () { return refs(t); }); } };
 })();
 </script>
+<script src="coread.js?v=3.7.0"></script>
 </body>
 </html>
