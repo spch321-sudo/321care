@@ -1,7 +1,7 @@
 /* 321愛的關懷 · Service Worker
    每次更新內容，請把 CACHE 版號往上跳一號（例如 v1.4.0 → v1.4.1），
    長輩的手機才會拿到新版本。 */
-const CACHE = "care321-v3.7.0-k3m";
+const CACHE = "care321-v3.8.0-k3m";
 
 const SHELL = [
   "./",
@@ -16,8 +16,9 @@ const SHELL = [
   "./icon-512-maskable.png",
   "./og-image.png",
   "./music.json",
-  "./coread.js?v=3.7.0",
-  "./peerjs.min.js?v=3.7.0"
+  "./coread.js?v=3.8.0",
+  "./peerjs.min.js?v=3.8.0",
+  "./xk321.js?v=3.8.0"
 ];
 /* 詩歌 mp3 不預先下載（30 首約 33MB），第一次播放後才進快取 */
 
@@ -34,7 +35,7 @@ self.addEventListener("install", e => {
 self.addEventListener("activate", e => {
   e.waitUntil(
     caches.keys()
-      .then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(ks => Promise.all(ks.filter(k => k.indexOf("care321-") === 0 && k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
