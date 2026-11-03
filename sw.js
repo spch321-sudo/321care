@@ -5,9 +5,9 @@
      clients.claim 後通知所有頁面（頁面自己判斷空閒才重整）
    ‧ fetch：HTML／JS／JSON／CSS 網路優先（no-cache），離線才用快取；圖片等快取優先；影音與 Range 請求不攔截 */
 var PFX = 'care321-';
-var VER = '3.8.1-xz1103';
+var VER = '3.8.1-xz1103-xzm1103';
 var V = PFX + VER;
-var SHELL = ["./", "./index.html", "./manifest.json", "./apple-touch-icon.png", "./favicon.ico", "./icon-32.png", "./icon-192.png", "./icon-512.png", "./icon-192-maskable.png", "./icon-512-maskable.png", "./og-image.png", "./music.json", "./coread.js?v=3.8.1-xz1103", "./peerjs.min.js?v=3.8.1-xz1103", "./xk321.js?v=3.8.1-xz1103", "./xz2.js?v=xz1103"];
+var SHELL = ["./", "./index.html", "./manifest.json", "./apple-touch-icon.png", "./favicon.ico", "./icon-32.png", "./icon-192.png", "./icon-512.png", "./icon-192-maskable.png", "./icon-512-maskable.png", "./og-image.png", "./music.json", "./coread.js?v=3.8.1-xz1103-xzm1103", "./peerjs.min.js?v=3.8.1-xz1103-xzm1103", "./xk321.js?v=3.8.1-xz1103-xzm1103", "./xz2.js?v=xz1103", "./xzm.js?v=xzm1103"];
 self.addEventListener('install', function (e) {
   self.skipWaiting();
   e.waitUntil(caches.open(V).then(function (c) {
