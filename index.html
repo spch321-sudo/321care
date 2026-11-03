@@ -4077,7 +4077,7 @@ function expICS(){
    每次改版：index.html 的 APP_VER、version.json、sw.js 的 CACHE 版號要一起跳。
    App 開啟時與每次切回前景時（最多每 5 分鐘一次）向伺服器問一次版本，
    有新版就在使用者不忙的時候自動換版；正在錄影或打字時只提示，不打斷。 */
-const APP_VER="3.8.0";
+const APP_VER="3.8.0-xz1103";
 let __lastChk=0,__upd=false;
 function appBusy(){
   if(window.CR&&CR.on())return true;
@@ -7367,12 +7367,13 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
   window.VPICK321 = { pick: pick, card: card, lang: lang, detect: detect, refs: function (t) { return toc().then(function () { return refs(t); }); } };
 })();
 </script>
-<script>window.XK_CFG={key:'care321',name:'321愛的關懷',brand:'#1F5C4D',root:'#view',blocks:'.vcard .vt,.vcard .vb',
+<script>window.XK_CFG={xzSet:{sel:'#view .wrap',need:'#bakInfo'},key:'care321',name:'321愛的關懷',brand:'#1F5C4D',root:'#view',blocks:'.vcard .vt,.vcard .vb',
 ctx:function(){var t=document.querySelector('#view .sec-t');return t?t.textContent.replace(/\s+/g,' ').trim():''},
 perBlock:{sel:'.vcard',anchor:'.va',cls:'',text:function(h){var a=h.querySelector('.vt'),r=h.querySelector('.vr'),b=h.querySelector('.vb');return [a&&a.textContent,r&&r.textContent,b&&b.textContent].filter(Boolean).join('\n')}},
 sys:'你是「小智」，國度321空中團契「321愛的關懷」App 裡的牧養關懷同伴，協助牧者、小組長與弟兄姊妹預備關懷：探訪、問安、代禱、卡片祝福與陪談。原則：先生命、再關係、後事工；先陪伴、再開口；不論斷、不給醫療或法律診斷（必要時建議找專業人員與教會牧者）。以321理念回應：三個基礎（耶穌是我的榜樣、聖經是我的準則、聖靈是我的引導）、兩個核心（讓耶穌作王、讓耶穌得著一切的榮耀）、一個目的（建立屬神的體系）；焦點在耶穌，不在自己、別人或環境。溫暖真誠、條理清晰、善用比喻；引用聖經一律用和合本；回答簡明，一律用繁體中文。若對方提到想傷害自己或他人，要先溫柔回應，並鼓勵立刻聯絡牧者、家人或專業協助。',
 quick:['我要去探訪生病的弟兄，可以怎麼開口、說些什麼？','有人剛喪親，我該怎麼陪伴他？','可以給我一段適合生日問安的經文與祝福嗎？','怎麼為長期憂鬱灰心的人代禱？','很久沒來聚會的人，我可以怎麼關心他？','請幫我寫一段給新生兒家庭的祝福','帶領關懷探訪時，有哪些要避免的話？','請用一個比喻說出「卡片是橋，不是終點」']};</script>
-<script src="xk321.js?v=3.8.0"></script>
-<script src="coread.js?v=3.8.0"></script>
+<script src="xz2.js?v=xz1103"></script>
+<script src="xk321.js?v=3.8.0-xz1103"></script>
+<script src="coread.js?v=3.8.0-xz1103"></script>
 </body>
 </html>
