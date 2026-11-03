@@ -1,89 +1,54 @@
-/* 321愛的關懷 · Service Worker
-   每次更新內容，請把 CACHE 版號往上跳一號（例如 v1.4.0 → v1.4.1），
-   長輩的手機才會拿到新版本。 */
-const CACHE = "care321-v3.8.0-xz1103-k3m";
-
-const SHELL = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./apple-touch-icon.png",
-  "./favicon.ico",
-  "./icon-32.png",
-  "./icon-192.png",
-  "./icon-512.png",
-  "./icon-192-maskable.png",
-  "./icon-512-maskable.png",
-  "./og-image.png",
-  "./music.json",
-  "./coread.js?v=3.8.0-xz1103",
-  "./peerjs.min.js?v=3.8.0-xz1103",
-  "./xk321.js?v=3.8.0-xz1103",
-  "./xz2.js?v=xz1103"
-];
-/* 詩歌 mp3 不預先下載（30 首約 33MB），第一次播放後才進快取 */
-
-/* 安裝：把外殼先存起來，之後沒有網路也打得開 */
-self.addEventListener("install", e => {
-  e.waitUntil(
-    caches.open(CACHE)
-      .then(c => c.addAll(SHELL).catch(() => c.add("./index.html")))
-      .then(() => self.skipWaiting())
-  );
+/* 321愛的關懷  Service Worker —— 自動更新版（321 系共用）
+   ‧ 每次發佈 VER 都不同 → 瀏覽器偵測到 sw.js 位元組改變就安裝新 SW（註冊時 updateViaCache:'none'）
+   ‧ install：skipWaiting；預載用 cache:'reload' 繞過 HTTP 快取（GitHub Pages 會快取 10 分鐘）
+   ‧ activate：只清自己前綴（PFX）的舊快取——同一個 github.io 網域的各 App 共用 Cache Storage，不能刪別人的；
+     clients.claim 後通知所有頁面（頁面自己判斷空閒才重整）
+   ‧ fetch：HTML／JS／JSON／CSS 網路優先（no-cache），離線才用快取；圖片等快取優先；影音與 Range 請求不攔截 */
+var PFX = 'care321-';
+var VER = '3.8.1-xz1103';
+var V = PFX + VER;
+var SHELL = ["./", "./index.html", "./manifest.json", "./apple-touch-icon.png", "./favicon.ico", "./icon-32.png", "./icon-192.png", "./icon-512.png", "./icon-192-maskable.png", "./icon-512-maskable.png", "./og-image.png", "./music.json", "./coread.js?v=3.8.1-xz1103", "./peerjs.min.js?v=3.8.1-xz1103", "./xk321.js?v=3.8.1-xz1103", "./xz2.js?v=xz1103"];
+self.addEventListener('install', function (e) {
+  self.skipWaiting();
+  e.waitUntil(caches.open(V).then(function (c) {
+    return Promise.all(SHELL.map(function (u) {
+      return fetch(new Request(u, { cache: 'reload' })).then(function (r) { if (r && r.ok) return c.put(u, r); })['catch'](function () { });
+    }));
+  }));
 });
-
-/* 啟用：刪掉舊版本的快取 */
-self.addEventListener("activate", e => {
-  e.waitUntil(
-    caches.keys()
-      .then(ks => Promise.all(ks.filter(k => k.indexOf("care321-") === 0 && k !== CACHE).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+self.addEventListener('activate', function (e) {
+  e.waitUntil(caches.keys().then(function (ks) {
+    return Promise.all(ks.filter(function (k) { return k.indexOf(PFX) === 0 && k !== V; }).map(function (k) { return caches['delete'](k); }));
+  }).then(function () { return self.clients.claim(); }).then(function () {
+    return self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  }).then(function (cs) {
+    cs.forEach(function (c) { try { if (c.url.indexOf(self.registration.scope) === 0) c.postMessage({ t: 'sw-updated', v: VER }); } catch (x) { } });
+  }));
 });
-
-/* 取用策略
-   · 網頁本身（HTML）：先連網拿最新的，連不上再用快取 —— 才不會一直看到舊版
-   · 其他靜態檔：先用快取，快就好，背景再補 */
-self.addEventListener("fetch", e => {
-  const req = e.request;
-  if (req.method !== "GET") return;
-  const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;
-
-  /* 版本檔一律直接連網，不能走快取，否則永遠檢查不到新版 */
-  if (url.pathname.endsWith("/version.json") || url.pathname.endsWith("version.json")) {
-    e.respondWith(fetch(req, { cache: "no-store" }).catch(() => caches.match(req)));
+self.addEventListener('message', function (e) { if (e.data === 'skip' || e.data === 'SKIP_WAITING') self.skipWaiting(); });
+self.addEventListener('fetch', function (e) {
+  var r = e.request; if (r.method !== 'GET') return;
+  var u = new URL(r.url); if (u.origin !== self.location.origin) return;
+  var p = u.pathname;
+  if (r.headers.get('range')) return;   /* 詩歌 mp3：完整請求第一次播放後進快取，Range 請求不攔截 */
+  if (/version\.json$/.test(p)) {
+    e.respondWith(fetch(p + '?t=' + Date.now(), { cache: 'no-store' })['catch'](function () { return new Response('{}', { headers: { 'Content-Type': 'application/json' } }); }));
     return;
   }
-
-  const isDoc = req.mode === "navigate" ||
-                (req.headers.get("accept") || "").includes("text/html");
-
-  if (isDoc) {
-    e.respondWith(
-      fetch(req)
-        .then(res => {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put("./index.html", copy));
-          return res;
-        })
-        .catch(() => caches.match("./index.html").then(r => r || caches.match("./")))
-    );
+  var nav = r.mode === 'navigate' || /\.html$/.test(p) || /\/$/.test(p);
+  var key = u.origin + p + (/\/$/.test(p) ? 'index.html' : '');
+  if (nav || /\.(json|js|css)$/.test(p)) {
+    e.respondWith(fetch(r.url, { cache: 'no-cache', credentials: 'same-origin' }).then(function (resp) {
+      if (resp && resp.ok) { var cp = resp.clone(); caches.open(V).then(function (c) { c.put(key, cp); }); }
+      return resp;
+    })['catch'](function () {
+      return caches.match(key).then(function (h) {
+        return h || caches.match(r, { ignoreSearch: true }).then(function (h2) { return h2 || (nav ? caches.match(u.origin + p.replace(/[^\/]*$/, '') + 'index.html') : undefined); });
+      });
+    }));
     return;
   }
-
-  e.respondWith(
-    caches.match(req).then(hit => hit || fetch(req).then(res => {
-      if (res && res.status === 200 && res.type === "basic") {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(req, copy));
-      }
-      return res;
-    }).catch(() => hit))
-  );
-});
-
-/* 讓 App 裡的「強制更新」按鈕可以立即換版 */
-self.addEventListener("message", e => {
-  if (e.data === "skipWaiting") self.skipWaiting();
+  e.respondWith(caches.match(r, { ignoreSearch: true }).then(function (h) {
+    return h || fetch(r).then(function (resp) { if (resp && resp.ok) { var cp = resp.clone(); caches.open(V).then(function (c) { c.put(r, cp); }); } return resp; });
+  }));
 });
